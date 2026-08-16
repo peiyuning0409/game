@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>井字棋</title>
+<style>
+body{margin:0;background:#1a1a2e;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;color:#fff;overflow:hidden}
+h2{margin:0 0 10px;color:#ffd700}
+#info{font-size:13px;color:#aaa;margin-bottom:8px}
+#status{font-size:18px;color:#ffd700;margin-bottom:10px}
+#board{display:grid;grid-template-columns:repeat(3,110px);gap:8px}
+.cell{width:110px;height:110px;background:#3a3a5a;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:60px;cursor:pointer;user-select:none}
+.cell:hover{background:#4a4a6a}
+#over{display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);align-items:center;justify-content:center;flex-direction:column;z-index:10}
+#over .score{font-size:40px;color:#ffd700;font-weight:bold}
+#over button{margin-top:16px;padding:12px 30px;font-size:16px;border:none;border-radius:8px;background:#ffd700;color:#1a1a2e;cursor:pointer;font-weight:bold}
+</style>
+</head>
+<body>
+<h2>⭕ 井字棋</h2>
+<div id="info">与电脑对战 · 三子连线获胜</div>
+<div id="status">轮到你 (X)</div>
+<div id="board"></div>
+<div id="over"><div class="score" id="finalScore">0</div><button onclick="restart()">再来一局</button></div>
+<script>
+let board,playerTurn,over,wins=0;
+function restart(){
+  board=Array(9).fill(null);playerTurn=true;over=false;
+  document.getElementById('over').style.display='none';
+  document.getElementById('status').textContent='轮到你 (X)';
+  render();
+}
+function render(){
+  const b=document.getElementById('board');b.innerHTML='';
+  board.forEach((v,i)=>{
+    const d=document.createElement('div');
+    d.className='cell';d.textContent=v||'';
+    d.style.color=v==='X'?'#ffd700':'#4d96ff';
+    d.onclick=()=>play(i);
+    b.appendChild(d);
+  });
+}
+function play(i){
+  if(over||!playerTurn||board[i])return;
+  board[i]='X';
+  if(checkWin('X')){endGame('你赢了!');return;}
+  if(board.every(v=>v)){endGame('平局');return;}
+  playerTurn=false;
+  document.getElementById('status').textContent='电脑思考中 (O)...';
+  render();
+  setTimeout(aiMove,400);
+}
+function aiMove(){
+  const empty=board.map((v,i)=>v?null:i).filter(v=>v!==null);
+  // 简单AI：优先堵玩家，其次随机
+  let move=null;
+  for(let i of empty){const t=board.slice();t[i]='O';if(checkWin('O',t)){move=i;break;}}
+  if(move===null){for(let i of empty){const t=board.slice();t[i]='X';if(checkWin('X',t)){move=i;break;}}}
+  if(move===null)move=empty[Math.floor(Math.random()*empty.length)];
+  board[move]='O';
+  if(checkWin('O')){endGame('电脑赢了');return;}
+  if(board.every(v=>v)){endGame('平局');return;}
+  playerTurn=true;
+  document.getElementById('status').textContent='轮到你 (X)';
+  render();
+}
+function checkWin(p,b){
+  b=b||board;
+  const lines=[[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+  return lines.some(l=>l.every(i=>b[i]===p));
+}
+function endGame(msg){
+  over=true;
+  document.getElementById('status').textContent=msg;
+  document.getElementById('finalScore').textContent=msg;
+  document.getElementById('over').style.display='flex';
+  if(msg==='你赢了!'){wins++;parent.postMessage({type:'game-score',game:'tictactoe',score:wins},'*');}
+}
+restart();
+</script>
+</body>
+</html>
