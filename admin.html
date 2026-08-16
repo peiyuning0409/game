@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Game Hub · 管理后台</title>
+<script src="assets/api.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:"Microsoft YaHei",sans-serif;background:#0f0c29;color:#fff;min-height:100vh}
+/* 登录 */
+#loginWrap{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#0f0c29,#302b63,#24243e);z-index:100}
+.login-box{width:380px;max-width:92vw;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.15);border-radius:20px;padding:40px 36px;text-align:center}
+.login-box h1{font-size:26px;margin-bottom:8px;color:#ffd700}
+.login-box .sub{color:#aaa;font-size:13px;margin-bottom:26px}
+.login-box input{width:100%;padding:13px 16px;margin-bottom:14px;border-radius:10px;border:1px solid rgba(255,255,255,.2);background:rgba(0,0,0,.3);color:#fff;font-size:15px;outline:none}
+.login-box input:focus{border-color:#ffd700}
+.login-box .btn{width:100%;padding:13px;border:none;border-radius:10px;font-size:16px;font-weight:bold;cursor:pointer;background:linear-gradient(90deg,#ffd700,#ff8c00);color:#1a1a2e}
+.login-box .msg{color:#ff6b6b;font-size:13px;min-height:18px;margin-top:8px}
+/* 主界面 */
+#mainWrap{display:none}
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:16px 28px;background:rgba(0,0,0,.35);border-bottom:1px solid rgba(255,255,255,.08);position:sticky;top:0;z-index:50}
+.topbar .logo{font-size:20px;font-weight:bold;color:#ffd700}
+.topbar .btn-sm{padding:7px 16px;border-radius:8px;border:1px solid rgba(255,255,255,.25);background:transparent;color:#fff;cursor:pointer;font-size:13px}
+.topbar .btn-sm:hover{background:rgba(255,255,255,.12)}
+.tabs{display:flex;gap:6px;padding:14px 28px 0}
+.tab{padding:10px 24px;border-radius:10px 10px 0 0;cursor:pointer;font-size:15px;background:rgba(255,255,255,.06);color:#ccc}
+.tab.active{background:rgba(255,255,255,.12);color:#ffd700;font-weight:bold}
+.content{padding:24px 28px 60px}
+.section-title{font-size:18px;font-weight:bold;margin:20px 0 14px;color:#ffd700}
+.stat-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:16px;margin-bottom:20px}
+.stat-card{background:rgba(255,255,255,.07);border-radius:14px;padding:20px;text-align:center;border:1px solid rgba(255,255,255,.1)}
+.stat-card .num{font-size:30px;font-weight:bold;color:#ffd700}
+.stat-card .lbl{font-size:13px;color:#aaa;margin-top:6px}
+table{width:100%;border-collapse:collapse;background:rgba(255,255,255,.05);border-radius:12px;overflow:hidden;margin-bottom:20px}
+th,td{padding:11px 14px;text-align:center;font-size:14px}
+th{background:rgba(255,215,0,.15);color:#ffd700}
+tr{border-bottom:1px solid rgba(255,255,255,.06)}
+tr:hover{background:rgba(255,255,255,.05)}
+.del-btn{padding:5px 12px;border:none;border-radius:6px;background:#e74c3c;color:#fff;cursor:pointer;font-size:12px}
+.del-btn:hover{background:#c0392b}
+.empty{text-align:center;color:#888;padding:30px;font-size:14px}
+#toast{position:fixed;top:20px;left:50%;transform:translateX(-50%);z-index:999;background:rgba(0,0,0,.85);color:#fff;padding:12px 26px;border-radius:30px;font-size:14px;display:none;border:1px solid rgba(255,255,255,.2)}
+#toast.ok{border-color:#4caf50}#toast.err{border-color:#ff6b6b}
+.loading{text-align:center;color:#aaa;padding:30px}
+</style>
+</head>
+<body>
+
+<div id="loginWrap">
+  <div class="login-box">
+    <h1>🔐 管理后台</h1>
+    <div class="sub">Game Hub 管理员专用入口</div>
+    <input id="pwd" type="password" placeholder="管理员密码" onkeydown="if(event.key==='Enter')login()">
+    <button class="btn" onclick="login()">进入后台</button>
+    <div class="msg" id="loginMsg"></div>
+  </div>
+</div>
+
+<div id="mainWrap">
+  <div class="topbar">
+    <div class="logo">🔐 Game Hub 管理后台</div>
+    <button class="btn-sm" onclick="logout()">退出</button>
+  </div>
+  <div class="tabs">
+    <div class="tab active" id="tabUsers" onclick="switchTab('users')">👥 用户管理</div>
+    <div class="tab" id="tabScores" onclick="switchTab('scores')">🏆 成绩数据</div>
+    <div class="tab" id="tabStats" onclick="switchTab('stats')">📊 游玩统计</div>
+  </div>
+  <div class="content">
+    <div id="viewUsers"></div>
+    <div id="viewScores" style="display:none"></div>
+    <div id="viewStats" style="display:none"></div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+const ADMIN_PWD = 'peiyuning1213';
+let loggedIn = false;
+
+function login(){
+  const p = document.getElementById('pwd').value;
+  if(p === ADMIN_PWD){
+    loggedIn = true;
+    document.getElementById('loginWrap').style.display = 'none';
+    document.getElementById('mainWrap').style.display = 'block';
+    loadUsers();
+  }else{
+    document.getElementById('loginMsg').textContent = '密码错误';
+  }
+}
+function logout(){ location.reload(); }
+
+function toast(msg,type){
+  const t=document.getElementById('toast');
+  t.textContent=msg;t.className=type||'';t.style.display='block';
+  clearTimeout(t._t);t._t=setTimeout(()=>t.style.display='none',2500);
+}
+
+/* ===== 用户管理 ===== */
+async function loadUsers(){
+  const el=document.getElementById('viewUsers');
+  el.innerHTML='<div class="loading">加载中...</div>';
+  try{
+    const data=await GH.readFile('data/users.json');
+    const users=data?data.content.users:[];
+    let html=`<div class="stat-cards">
+      <div class="stat-card"><div class="num">${users.length}</div><div class="lbl">注册用户</div></div>
+      <div class="stat-card"><div class="num">${users.reduce((s,u)=>s+(u.plays||0),0)}</div><div class="lbl">总游玩次数</div></div>
+    </div>`;
+    html+='<div class="section-title">👥 全部用户账号</div>';
+    if(users.length===0){html+='<div class="empty">暂无用户</div>';}
+    else{
+      html+='<table><tr><th>#</th><th>用户名</th><th>密码</th><th>注册时间</th><th>游玩次数</th><th>操作</th></tr>';
+      users.forEach((u,i)=>{
+        html+=`<tr><td>${i+1}</td><td>${u.username}</td><td>${u.password}</td><td>${u.regTime||'-'}</td><td>${u.plays||0}</td>
+        <td><button class="del-btn" onclick="delUser('${u.username}')">删除</button></td></tr>`;
+      });
+      html+='</table>';
+    }
+    el.innerHTML=html;
+  }catch(e){el.innerHTML='<div class="empty">加载失败</div>';}
+}
+
+async function delUser(name){
+  if(!confirm('确定删除用户 '+name+' 及其所有数据？'))return;
+  try{
+    await GH.updateFile('data/users.json',d=>{d.users=d.users.filter(u=>u.username!==name);return d;});
+    await GH.updateFile('data/scores.json',d=>{d.scores=d.scores.filter(s=>s.username!==name);return d;});
+    await GH.updateFile('data/stats.json',d=>{d.stats=d.stats.filter(s=>s.username!==name);return d;});
+    toast('已删除用户 '+name,'ok');
+    loadUsers();
+  }catch(e){toast('删除失败','err');}
+}
+
+/* ===== 成绩数据 ===== */
+async function loadScores(){
+  const el=document.getElementById('viewScores');
+  el.innerHTML='<div class="loading">加载中...</div>';
+  try{
+    const data=await GH.readFile('data/scores.json');
+    const scores=data?data.content.scores:[];
+    let html=`<div class="stat-cards">
+      <div class="stat-card"><div class="num">${scores.length}</div><div class="lbl">成绩记录</div></div>
+    </div>`;
+    html+='<div class="section-title">🏆 全部成绩记录</div>';
+    if(scores.length===0){html+='<div class="empty">暂无成绩</div>';}
+    else{
+      html+='<table><tr><th>#</th><th>玩家</th><th>游戏</th><th>成绩</th><th>时间</th></tr>';
+      scores.slice().reverse().forEach((s,i)=>{
+        html+=`<tr><td>${i+1}</td><td>${s.username}</td><td>${s.game}</td><td>${s.score}</td><td>${s.time}</td></tr>`;
+      });
+      html+='</table>';
+    }
+    el.innerHTML=html;
+  }catch(e){el.innerHTML='<div class="empty">加载失败</div>';}
+}
+
+/* ===== 游玩统计 ===== */
+async function loadStats(){
+  const el=document.getElementById('viewStats');
+  el.innerHTML='<div class="loading">加载中...</div>';
+  try{
+    const data=await GH.readFile('data/stats.json');
+    const stats=data?data.content.stats:[];
+    let html=`<div class="stat-cards">
+      <div class="stat-card"><div class="num">${stats.length}</div><div class="lbl">总游玩记录</div></div>
+    </div>`;
+    html+='<div class="section-title">📊 最近游玩记录</div>';
+    if(stats.length===0){html+='<div class="empty">暂无记录</div>';}
+    else{
+      html+='<table><tr><th>#</th><th>玩家</th><th>游戏</th><th>时间</th></tr>';
+      stats.slice().reverse().slice(0,100).forEach((s,i)=>{
+        html+=`<tr><td>${i+1}</td><td>${s.username}</td><td>${s.game}</td><td>${s.time}</td></tr>`;
+      });
+      html+='</table>';
+    }
+    el.innerHTML=html;
+  }catch(e){el.innerHTML='<div class="empty">加载失败</div>';}
+}
+
+function switchTab(t){
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+  document.getElementById('tabUsers').classList.toggle('active',t==='users');
+  document.getElementById('tabScores').classList.toggle('active',t==='scores');
+  document.getElementById('tabStats').classList.toggle('active',t==='stats');
+  document.getElementById('viewUsers').style.display=t==='users'?'block':'none';
+  document.getElementById('viewScores').style.display=t==='scores'?'block':'none';
+  document.getElementById('viewStats').style.display=t==='stats'?'block':'none';
+  if(t==='users')loadUsers();
+  if(t==='scores')loadScores();
+  if(t==='stats')loadStats();
+}
+</script>
+</body>
+</html>
