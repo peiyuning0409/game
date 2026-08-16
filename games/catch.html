@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>接水果</title>
+<style>
+body{margin:0;background:#1a1a2e;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;color:#fff;overflow:hidden}
+h2{margin:0 0 10px;color:#ffd700}
+#info{font-size:13px;color:#aaa;margin-bottom:8px}
+canvas{background:#0a1a0a;border:2px solid #444;border-radius:8px;cursor:none}
+#over{display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);align-items:center;justify-content:center;flex-direction:column;z-index:10}
+#over .score{font-size:40px;color:#ffd700;font-weight:bold}
+#over button{margin-top:16px;padding:12px 30px;font-size:16px;border:none;border-radius:8px;background:#ffd700;color:#1a1a2e;cursor:pointer;font-weight:bold}
+</style>
+</head>
+<body>
+<h2>🍎 接水果</h2>
+<div id="info">移动鼠标接住水果 · 漏掉 3 个结束</div>
+<canvas id="c" width="500" height="500"></canvas>
+<div id="over"><div class="score" id="finalScore">0</div><button onclick="restart()">再来一局</button></div>
+<script>
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+const FRUITS=['🍎','🍌','🍇','🍓','🍊','🍉','🍑','🥝'];
+let basket,fruits,score,miss,over,raf,frame=0;
+function restart(){
+  basket={x:200,w:90,h:20};
+  fruits=[];score=0;miss=0;over=false;frame=0;
+  document.getElementById('over').style.display='none';
+  cancelAnimationFrame(raf);
+  loop();
+}
+cv.onmousemove=e=>{
+  const rect=cv.getBoundingClientRect();
+  basket.x=e.clientX-rect.left-basket.w/2;
+  basket.x=Math.max(0,Math.min(500-basket.w,basket.x));
+};
+function loop(){
+  ctx.clearRect(0,0,500,500);
+  frame++;
+  if(frame%25===0)fruits.push({x:Math.random()*480,y:-20,emoji:FRUITS[Math.floor(Math.random()*FRUITS.length)],speed:2+Math.random()*3});
+  fruits.forEach(f=>f.y+=f.speed);
+  // catch
+  fruits.forEach(f=>{
+    if(f.y+20>basket.y&&f.y<basket.y+basket.h&&f.x>basket.x&&f.x<basket.x+basket.w){f.caught=true;score+=10;}
+  });
+  fruits=fruits.filter(f=>!f.caught);
+  // miss
+  const before=miss;
+  fruits=fruits.filter(f=>{if(f.y>500){miss++;return false;}return true;});
+  if(miss>=3){gameOver();return;}
+  // draw
+  ctx.fillStyle='#8a5a2b';ctx.fillRect(basket.x,basket.y,basket.w,basket.h);
+  fruits.forEach(f=>{ctx.font='24px sans-serif';ctx.fillText(f.emoji,f.x,f.y);});
+  ctx.fillStyle='#ffd700';ctx.font='bold 18px sans-serif';ctx.fillText('分数: '+score+' · 漏掉: '+miss+'/3',10,25);
+  raf=requestAnimationFrame(loop);
+}
+function gameOver(){
+  over=true;cancelAnimationFrame(raf);
+  document.getElementById('finalScore').textContent=score;
+  document.getElementById('over').style.display='flex';
+  parent.postMessage({type:'game-score',game:'catch',score:score},'*');
+}
+restart();
+</script>
+</body>
+</html>
