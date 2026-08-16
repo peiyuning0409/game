@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>消消乐</title>
+<style>
+body{margin:0;background:#1a1a2e;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;color:#fff;overflow:hidden}
+h2{margin:0 0 10px;color:#ffd700}
+#info{font-size:13px;color:#aaa;margin-bottom:8px}
+#scoreBox{font-size:20px;color:#ffd700;margin-bottom:10px}
+#board{display:grid;grid-template-columns:repeat(8,48px);gap:3px;background:#3a3a5a;padding:6px;border-radius:10px}
+.candy{width:48px;height:48px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:28px;cursor:pointer;user-select:none;transition:.15s}
+.candy.sel{box-shadow:0 0 0 3px #ffd700}
+#over{display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);align-items:center;justify-content:center;flex-direction:column;z-index:10}
+#over .score{font-size:40px;color:#ffd700;font-weight:bold}
+#over button{margin-top:16px;padding:12px 30px;font-size:16px;border:none;border-radius:8px;background:#ffd700;color:#1a1a2e;cursor:pointer;font-weight:bold}
+</style>
+</head>
+<body>
+<h2>🍬 消消乐</h2>
+<div id="info">点击相邻糖果交换 · 三个相同即可消除</div>
+<div id="scoreBox">分数: 0</div>
+<div id="board"></div>
+<div id="over"><div class="score" id="finalScore">0</div><button onclick="restart()">再来一局</button></div>
+<script>
+const ROWS=8,COLS=8;
+const CANDIES=['🍎','🍌','🍇','🍓','🍊','🍋'];
+let grid,score,selected,over;
+function restart(){
+  grid=Array.from({length:ROWS},()=>Array.from({length:COLS},()=>CANDIES[Math.floor(Math.random()*CANDIES.length)]));
+  score=0;selected=null;over=false;
+  document.getElementById('over').style.display='none';
+  document.getElementById('scoreBox').textContent='分数: 0';
+  render();
+}
+function render(){
+  const b=document.getElementById('board');b.innerHTML='';
+  for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){
+    const d=document.createElement('div');
+    d.className='candy'+(selected&&selected[0]===r&&selected[1]===c?' sel':'');
+    d.textContent=grid[r][c];
+    d.onclick=()=>click(r,c);
+    b.appendChild(d);
+  }
+}
+function click(r,c){
+  if(over)return;
+  if(!selected){selected=[r,c];render();return;}
+  const [sr,sc]=selected;
+  const dist=Math.abs(sr-r)+Math.abs(sc-c);
+  if(dist===1){
+    // swap
+    [grid[sr][sc],grid[r][c]]=[grid[r][c],grid[sr][sc]];
+    const matches=findMatches();
+    if(matches.length===0){
+      [grid[sr][sc],grid[r][c]]=[grid[r][c],grid[sr][sc]];
+    }else{
+      score+=matches.length*10;
+      document.getElementById('scoreBox').textContent='分数: '+score;
+      clearMatches();
+    }
+  }
+  selected=null;
+  render();
+}
+function findMatches(){
+  const matched=new Set();
+  for(let r=0;r<ROWS;r++)for(let c=0;c<COLS-2;c++){
+    if(grid[r][c]===grid[r][c+1]&&grid[r][c]===grid[r][c+2]){
+      matched.add(r+','+c);matched.add(r+','+(c+1));matched.add(r+','+(c+2));
+    }
+  }
+  for(let c=0;c<COLS;c++)for(let r=0;r<ROWS-2;r++){
+    if(grid[r][c]===grid[r+1][c]&&grid[r][c]===grid[r+2][c]){
+      matched.add(r+','+c);matched.add((r+1)+','+c);matched.add((r+2)+','+c);
+    }
+  }
+  return [...matched].map(s=>s.split(',').map(Number));
+}
+function clearMatches(){
+  let matches=findMatches();
+  while(matches.length){
+    matches.forEach(([r,c])=>{grid[r][c]=null;});
+    // drop
+    for(let c=0;c<COLS;c++){
+      let write=ROWS-1;
+      for(let r=ROWS-1;r>=0;r--){if(grid[r][c]){grid[write][c]=grid[r][c];if(write!==r)grid[r][c]=null;write--;}}
+      for(let r=write;r>=0;r--)grid[r][c]=CANDIES[Math.floor(Math.random()*CANDIES.length)];
+    }
+    score+=matches.length*10;
+    document.getElementById('scoreBox').textContent='分数: '+score;
+    matches=findMatches();
+  }
+  render();
+}
+restart();
+</script>
+</body>
+</html>
