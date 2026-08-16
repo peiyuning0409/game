@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>猜数字</title>
+<style>
+body{margin:0;background:#1a1a2e;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;color:#fff;overflow:hidden}
+h2{margin:0 0 10px;color:#ffd700}
+#info{font-size:13px;color:#aaa;margin-bottom:8px}
+#hint{font-size:20px;color:#ffd700;margin:10px 0;min-height:28px}
+#input{width:200px;padding:12px;font-size:18px;text-align:center;border-radius:8px;border:1px solid #555;background:#333;color:#fff;outline:none}
+#btn{margin-top:12px;padding:10px 30px;font-size:15px;border:none;border-radius:8px;background:#ffd700;color:#1a1a2e;cursor:pointer;font-weight:bold}
+#history{width:300px;max-height:200px;overflow-y:auto;margin-top:16px;text-align:center;color:#aaa;font-size:14px}
+#over{display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);align-items:center;justify-content:center;flex-direction:column;z-index:10}
+#over .score{font-size:40px;color:#ffd700;font-weight:bold}
+#over button{margin-top:16px;padding:12px 30px;font-size:16px;border:none;border-radius:8px;background:#ffd700;color:#1a1a2e;cursor:pointer;font-weight:bold}
+</style>
+</head>
+<body>
+<h2>🔮 猜数字</h2>
+<div id="info">猜 1-100 之间的数字 · 看谁猜得快</div>
+<div id="hint">请输入你的猜测</div>
+<input id="input" type="number" min="1" max="100" onkeydown="if(event.key==='Enter')guess()">
+<div><button id="btn" onclick="guess()">猜!</button></div>
+<div id="history"></div>
+<div id="over"><div class="score" id="finalScore">0</div><button onclick="restart()">再来一局</button></div>
+<script>
+let target,count;
+function restart(){
+  target=Math.floor(Math.random()*100)+1;
+  count=0;
+  document.getElementById('hint').textContent='请输入你的猜测';
+  document.getElementById('history').textContent='';
+  document.getElementById('input').value='';
+  document.getElementById('over').style.display='none';
+}
+function guess(){
+  const v=parseInt(document.getElementById('input').value);
+  if(!v||v<1||v>100){document.getElementById('hint').textContent='请输入 1-100 的数字';return;}
+  count++;
+  const h=document.getElementById('history');
+  if(v===target){
+    document.getElementById('hint').textContent='🎉 猜对了! 用了 '+count+' 次';
+    h.textContent+='第'+count+'次: '+v+' ✓\n';
+    document.getElementById('finalScore').textContent='猜中! 用了 '+count+' 次';
+    document.getElementById('over').style.display='flex';
+    parent.postMessage({type:'game-score',game:'guess',score:count},'*');
+  }else if(v<target){
+    document.getElementById('hint').textContent='太小了，再大一点';
+    h.textContent+='第'+count+'次: '+v+' 太小\n';
+  }else{
+    document.getElementById('hint').textContent='太大了，再小一点';
+    h.textContent+='第'+count+'次: '+v+' 太大\n';
+  }
+  document.getElementById('input').value='';
+  document.getElementById('input').focus();
+}
+restart();
+</script>
+</body>
+</html>
