@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>像素鸟</title>
+<style>
+body{margin:0;background:#1a1a2e;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;color:#fff;overflow:hidden}
+h2{margin:0 0 10px;color:#ffd700}
+#info{font-size:13px;color:#aaa;margin-bottom:8px}
+canvas{background:#4d96ff;border:2px solid #444;border-radius:8px;cursor:pointer}
+#over{display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);align-items:center;justify-content:center;flex-direction:column;z-index:10}
+#over .score{font-size:40px;color:#ffd700;font-weight:bold}
+#over button{margin-top:16px;padding:12px 30px;font-size:16px;border:none;border-radius:8px;background:#ffd700;color:#1a1a2e;cursor:pointer;font-weight:bold}
+</style>
+</head>
+<body>
+<h2>🐤 像素鸟</h2>
+<div id="info">点击 / 空格 让小鸟飞 · 穿过管道</div>
+<canvas id="c" width="400" height="600"></canvas>
+<div id="over"><div class="score" id="finalScore">0</div><button onclick="restart()">再来一局</button></div>
+<script>
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+let bird,pipes,score,over,raf,frame=0;
+function restart(){
+  bird={x:100,y:300,vy:0};
+  pipes=[];score=0;over=false;frame=0;
+  document.getElementById('over').style.display='none';
+  cancelAnimationFrame(raf);
+  loop();
+}
+function flap(){
+  if(over)return;
+  bird.vy=-7;
+}
+cv.onclick=flap;
+document.addEventListener('keydown',e=>{if(e.code==='Space'){e.preventDefault();flap();}});
+function loop(){
+  ctx.clearRect(0,0,400,600);
+  frame++;
+  // bird physics
+  bird.vy+=0.5;
+  bird.y+=bird.vy;
+  // pipes
+  if(frame%80===0){
+    const gap=150;
+    const topH=50+Math.random()*250;
+    pipes.push({x:400,top:topH,bottom:topH+gap,passed:false});
+  }
+  pipes.forEach(p=>p.x-=3);
+  pipes=pipes.filter(p=>p.x>-60);
+  // score
+  pipes.forEach(p=>{if(!p.passed&&p.x<bird.x){p.passed=true;score++;}});
+  // collision
+  if(bird.y<0||bird.y>600){gameOver();return;}
+  for(let p of pipes){
+    if(bird.x+20>p.x&&bird.x<p.x+60){
+      if(bird.y<p.top||bird.y+20>p.bottom){gameOver();return;}
+    }
+  }
+  // draw
+  ctx.fillStyle='#ffd700';ctx.beginPath();ctx.arc(bird.x,bird.y,15,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#ff8c00';ctx.beginPath();ctx.arc(bird.x+10,bird.y-4,5,0,Math.PI*2);ctx.fill();
+  pipes.forEach(p=>{
+    ctx.fillStyle='#4caf50';ctx.fillRect(p.x,0,60,p.top);
+    ctx.fillRect(p.x,p.bottom,60,600-p.bottom);
+    ctx.fillStyle='#2e7d32';ctx.fillRect(p.x-3,p.top-20,66,20);
+    ctx.fillRect(p.x-3,p.bottom,66,20);
+  });
+  ctx.fillStyle='#fff';ctx.font='bold 24px sans-serif';ctx.fillText(score,190,50);
+  raf=requestAnimationFrame(loop);
+}
+function gameOver(){
+  over=true;cancelAnimationFrame(raf);
+  document.getElementById('finalScore').textContent=score;
+  document.getElementById('over').style.display='flex';
+  parent.postMessage({type:'game-score',game:'flappy',score:score},'*');
+}
+restart();
+</script>
+</body>
+</html>
