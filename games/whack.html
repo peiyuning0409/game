@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>打地鼠</title>
+<style>
+body{margin:0;background:#1a1a2e;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;color:#fff;overflow:hidden}
+h2{margin:0 0 10px;color:#ffd700}
+#info{font-size:13px;color:#aaa;margin-bottom:8px}
+#scoreBox{font-size:20px;color:#ffd700;margin-bottom:10px}
+#board{display:grid;grid-template-columns:repeat(3,110px);gap:12px}
+.hole{width:110px;height:110px;background:#3a3a5a;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:60px;cursor:pointer;user-select:none;position:relative;overflow:hidden}
+.hole .mole{position:absolute;bottom:-70px;transition:bottom .1s;font-size:60px}
+.hole.up .mole{bottom:10px}
+#over{display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);align-items:center;justify-content:center;flex-direction:column;z-index:10}
+#over .score{font-size:40px;color:#ffd700;font-weight:bold}
+#over button{margin-top:16px;padding:12px 30px;font-size:16px;border:none;border-radius:8px;background:#ffd700;color:#1a1a2e;cursor:pointer;font-weight:bold}
+</style>
+</head>
+<body>
+<h2>🔨 打地鼠</h2>
+<div id="info">点击冒出的地鼠 · 30秒倒计时</div>
+<div id="scoreBox">分数: 0 · 时间: 30s</div>
+<div id="board"></div>
+<div id="over"><div class="score" id="finalScore">0</div><button onclick="restart()">再来一局</button></div>
+<script>
+let score=0,time=30,over=false,timer,spawnTimer;
+const board=document.getElementById('board');
+for(let i=0;i<9;i++){
+  const h=document.createElement('div');
+  h.className='hole';
+  h.innerHTML='<div class="mole">🐹</div>';
+  h.onclick=()=>{if(h.classList.contains('up')){score+=10;h.classList.remove('up');document.getElementById('scoreBox').textContent='分数: '+score+' · 时间: '+time+'s';}};
+  board.appendChild(h);
+}
+function spawn(){
+  if(over)return;
+  const holes=document.querySelectorAll('.hole');
+  holes.forEach(h=>h.classList.remove('up'));
+  const h=holes[Math.floor(Math.random()*holes.length)];
+  h.classList.add('up');
+  setTimeout(()=>h.classList.remove('up'),800);
+}
+function restart(){
+  score=0;time=30;over=false;
+  document.getElementById('over').style.display='none';
+  document.getElementById('scoreBox').textContent='分数: 0 · 时间: 30s';
+  clearInterval(timer);clearInterval(spawnTimer);
+  spawnTimer=setInterval(spawn,700);
+  timer=setInterval(()=>{
+    time--;
+    document.getElementById('scoreBox').textContent='分数: '+score+' · 时间: '+time+'s';
+    if(time<=0){gameOver();}
+  },1000);
+}
+function gameOver(){
+  over=true;clearInterval(timer);clearInterval(spawnTimer);
+  document.querySelectorAll('.hole').forEach(h=>h.classList.remove('up'));
+  document.getElementById('finalScore').textContent=score;
+  document.getElementById('over').style.display='flex';
+  parent.postMessage({type:'game-score',game:'whack',score:score},'*');
+}
+restart();
+</script>
+</body>
+</html>
