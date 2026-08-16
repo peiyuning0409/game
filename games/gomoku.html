@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>五子棋</title>
+<style>
+body{margin:0;background:#1a1a2e;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;color:#fff;overflow:hidden}
+h2{margin:0 0 10px;color:#ffd700}
+#info{font-size:13px;color:#aaa;margin-bottom:8px}
+#status{font-size:18px;color:#ffd700;margin-bottom:10px}
+canvas{background:#d9a066;border-radius:8px;cursor:pointer}
+#over{display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);align-items:center;justify-content:center;flex-direction:column;z-index:10}
+#over .score{font-size:40px;color:#ffd700;font-weight:bold}
+#over button{margin-top:16px;padding:12px 30px;font-size:16px;border:none;border-radius:8px;background:#ffd700;color:#1a1a2e;cursor:pointer;font-weight:bold}
+</style>
+</head>
+<body>
+<h2>⚫ 五子棋</h2>
+<div id="info">点击落子 · 与电脑对战 · 五子连线获胜</div>
+<div id="status">轮到你 (黑棋)</div>
+<canvas id="c" width="450" height="450"></canvas>
+<div id="over"><div class="score" id="finalScore">0</div><button onclick="restart()">再来一局</button></div>
+<script>
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+const N=15,SIZE=30,OFF=15;
+let board,playerTurn,over,wins=0;
+function restart(){
+  board=Array.from({length:N},()=>Array(N).fill(0));
+  playerTurn=true;over=false;
+  document.getElementById('over').style.display='none';
+  document.getElementById('status').textContent='轮到你 (黑棋)';
+  draw();
+}
+function draw(){
+  ctx.clearRect(0,0,450,450);
+  ctx.strokeStyle='#8a5a2b';
+  for(let i=0;i<N;i++){
+    ctx.beginPath();ctx.moveTo(OFF+i*SIZE,OFF);ctx.lineTo(OFF+i*SIZE,OFF+(N-1)*SIZE);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(OFF,OFF+i*SIZE);ctx.lineTo(OFF+(N-1)*SIZE,OFF+i*SIZE);ctx.stroke();
+  }
+  for(let r=0;r<N;r++)for(let c=0;c<N;c++){
+    if(board[r][c]){
+      ctx.beginPath();ctx.arc(OFF+c*SIZE,OFF+r*SIZE,12,0,Math.PI*2);
+      ctx.fillStyle=board[r][c]===1?'#111':'#fff';ctx.fill();
+      ctx.strokeStyle='#333';ctx.stroke();
+    }
+  }
+}
+cv.onclick=(e)=>{
+  if(over||!playerTurn)return;
+  const rect=cv.getBoundingClientRect();
+  const x=Math.round((e.clientX-rect.left-OFF)/SIZE);
+  const y=Math.round((e.clientY-rect.top-OFF)/SIZE);
+  if(x<0||x>=N||y<0||y>=N||board[y][x])return;
+  board[y][x]=1;
+  if(checkWin(y,x,1)){endGame('你赢了!');return;}
+  if(isFull()){endGame('平局');return;}
+  playerTurn=false;
+  document.getElementById('status').textContent='电脑思考中 (白棋)...';
+  draw();
+  setTimeout(aiMove,300);
+};
+function aiMove(){
+  // 简单AI：随机落子（优先中心附近）
+  const empty=[];
+  for(let r=0;r<N;r++)for(let c=0;c<N;c++)if(!board[r][c])empty.push([r,c]);
+  if(!empty.length){endGame('平局');return;}
+  const [y,x]=empty[Math.floor(Math.random()*empty.length)];
+  board[y][x]=2;
+  if(checkWin(y,x,2)){endGame('电脑赢了');return;}
+  if(isFull()){endGame('平局');return;}
+  playerTurn=true;
+  document.getElementById('status').textContent='轮到你 (黑棋)';
+  draw();
+}
+function checkWin(r,c,p){
+  const dirs=[[0,1],[1,0],[1,1],[1,-1]];
+  for(let [dr,dc] of dirs){
+    let count=1;
+    for(let s=1;s<5;s++){const nr=r+dr*s,nc=c+dc*s;if(nr>=0&&nr<N&&nc>=0&&nc<N&&board[nr][nc]===p)count++;else break;}
+    for(let s=1;s<5;s++){const nr=r-dr*s,nc=c-dc*s;if(nr>=0&&nr<N&&nc>=0&&nc<N&&board[nr][nc]===p)count++;else break;}
+    if(count>=5)return true;
+  }
+  return false;
+}
+function isFull(){return board.every(row=>row.every(v=>v));}
+function endGame(msg){
+  over=true;
+  document.getElementById('status').textContent=msg;
+  document.getElementById('finalScore').textContent=msg;
+  document.getElementById('over').style.display='flex';
+  if(msg==='你赢了!'){wins++;parent.postMessage({type:'game-score',game:'gomoku',score:wins},'*');}
+}
+restart();
+</script>
+</body>
+</html>
