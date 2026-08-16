@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>打字达人</title>
+<style>
+body{margin:0;background:#1a1a2e;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;color:#fff;overflow:hidden}
+h2{margin:0 0 10px;color:#ffd700}
+#info{font-size:13px;color:#aaa;margin-bottom:8px}
+#word{font-size:44px;color:#ffd700;font-weight:bold;margin:16px 0;letter-spacing:4px;min-height:60px}
+#input{width:280px;padding:12px;font-size:20px;text-align:center;border-radius:8px;border:1px solid #555;background:#333;color:#fff;outline:none}
+#scoreBox{font-size:18px;color:#ffd700;margin-top:14px}
+#over{display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);align-items:center;justify-content:center;flex-direction:column;z-index:10}
+#over .score{font-size:40px;color:#ffd700;font-weight:bold}
+#over button{margin-top:16px;padding:12px 30px;font-size:16px;border:none;border-radius:8px;background:#ffd700;color:#1a1a2e;cursor:pointer;font-weight:bold}
+</style>
+</head>
+<body>
+<h2>⌨️ 打字达人</h2>
+<div id="info">输入显示的英文单词 · 60秒挑战</div>
+<div id="word">start</div>
+<input id="input" autocomplete="off" oninput="check()">
+<div id="scoreBox">分数: 0 · 时间: 60s</div>
+<div id="over"><div class="score" id="finalScore">0</div><button onclick="restart()">再来一局</button></div>
+<script>
+const WORDS=['apple','banana','cherry','dragon','elephant','forest','garden','harbor','island','jungle','kitten','lemon','mountain','night','orange','piano','queen','river','sunset','tiger','umbrella','village','window','yellow','zebra','computer','keyboard','monitor','python','gaming','music','coffee','school','friend','happy','smile','light','water','cloud','stone'];
+let word,score,time,over,timer;
+function restart(){
+  score=0;time=60;over=false;
+  document.getElementById('over').style.display='none';
+  document.getElementById('input').value='';
+  document.getElementById('input').focus();
+  nextWord();
+  document.getElementById('scoreBox').textContent='分数: 0 · 时间: 60s';
+  clearInterval(timer);
+  timer=setInterval(()=>{
+    time--;
+    document.getElementById('scoreBox').textContent='分数: '+score+' · 时间: '+time+'s';
+    if(time<=0)gameOver();
+  },1000);
+}
+function nextWord(){
+  word=WORDS[Math.floor(Math.random()*WORDS.length)];
+  document.getElementById('word').textContent=word;
+}
+function check(){
+  const v=document.getElementById('input').value.trim().toLowerCase();
+  if(v===word){
+    score+=word.length*2;
+    document.getElementById('input').value='';
+    nextWord();
+    document.getElementById('scoreBox').textContent='分数: '+score+' · 时间: '+time+'s';
+  }
+}
+function gameOver(){
+  over=true;clearInterval(timer);
+  document.getElementById('finalScore').textContent=score;
+  document.getElementById('over').style.display='flex';
+  parent.postMessage({type:'game-score',game:'typing',score:score},'*');
+}
+restart();
+</script>
+</body>
+</html>
