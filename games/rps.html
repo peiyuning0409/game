@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>石头剪刀布</title>
+<style>
+body{margin:0;background:#1a1a2e;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;color:#fff;overflow:hidden}
+h2{margin:0 0 10px;color:#ffd700}
+#info{font-size:13px;color:#aaa;margin-bottom:8px}
+#scoreBox{font-size:18px;color:#ffd700;margin-bottom:16px}
+#arena{display:flex;align-items:center;justify-content:center;gap:40px;margin-bottom:20px}
+#arena .side{text-align:center}
+#arena .side .lbl{color:#aaa;font-size:13px;margin-bottom:6px}
+#arena .side .emoji{font-size:80px;min-height:90px}
+#result{font-size:22px;color:#ffd700;margin-bottom:16px;min-height:30px}
+#choices{display:flex;gap:16px}
+.choice{width:90px;height:90px;background:#3a3a5a;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:44px;cursor:pointer;transition:.2s}
+.choice:hover{background:#4a4a6a;transform:translateY(-4px)}
+#over{display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);align-items:center;justify-content:center;flex-direction:column;z-index:10}
+#over .score{font-size:40px;color:#ffd700;font-weight:bold}
+#over button{margin-top:16px;padding:12px 30px;font-size:16px;border:none;border-radius:8px;background:#ffd700;color:#1a1a2e;cursor:pointer;font-weight:bold}
+</style>
+</head>
+<body>
+<h2>✊ 石头剪刀布</h2>
+<div id="info">选择你的出拳 · 三局两胜</div>
+<div id="scoreBox">你 0 : 0 电脑</div>
+<div id="arena">
+  <div class="side"><div class="lbl">你</div><div class="emoji" id="youE">❓</div></div>
+  <div class="side"><div class="lbl">电脑</div><div class="emoji" id="comE">❓</div></div>
+</div>
+<div id="result">开始吧!</div>
+<div id="choices">
+  <div class="choice" onclick="play('✊')">✊</div>
+  <div class="choice" onclick="play('✌️')">✌️</div>
+  <div class="choice" onclick="play('🖐️')">🖐️</div>
+</div>
+<div id="over"><div class="score" id="finalScore">0</div><button onclick="restart()">再来一局</button></div>
+<script>
+const RULES={'✊':'✌️','✌️':'🖐️','🖐️':'✊'};
+let you=0,com=0,round=0;
+function play(mine){
+  const opts=['✊','✌️','🖐️'];
+  const c=opts[Math.floor(Math.random()*3)];
+  document.getElementById('youE').textContent=mine;
+  document.getElementById('comE').textContent=c;
+  round++;
+  let msg;
+  if(mine===c)msg='平局!';
+  else if(RULES[mine]===c){you++;msg='你赢了!';}
+  else{com++;msg='电脑赢了!';}
+  document.getElementById('result').textContent=msg;
+  document.getElementById('scoreBox').textContent='你 '+you+' : '+com+' 电脑';
+  if(round>=3){
+    const final=you>com?'你获胜!':you<com?'电脑获胜!':'平局';
+    document.getElementById('finalScore').textContent=final+' (你 '+you+' : '+com+' 电脑)';
+    document.getElementById('over').style.display='flex';
+    if(you>com)parent.postMessage({type:'game-score',game:'rps',score:you},'*');
+  }
+}
+function restart(){
+  you=0;com=0;round=0;
+  document.getElementById('youE').textContent='❓';
+  document.getElementById('comE').textContent='❓';
+  document.getElementById('result').textContent='开始吧!';
+  document.getElementById('scoreBox').textContent='你 0 : 0 电脑';
+  document.getElementById('over').style.display='none';
+}
+</script>
+</body>
+</html>
