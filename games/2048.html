@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>2048</title>
+<style>
+body{margin:0;background:#1a1a2e;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;color:#fff;overflow:hidden}
+h2{margin:0 0 10px;color:#ffd700}
+#info{font-size:13px;color:#aaa;margin-bottom:8px}
+#scoreBox{font-size:20px;color:#ffd700;margin-bottom:10px}
+#board{display:grid;grid-template-columns:repeat(4,90px);gap:8px;background:#444;padding:8px;border-radius:10px}
+.tile{width:90px;height:90px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:30px;font-weight:bold;background:#666;color:#fff;transition:.1s}
+#over{display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);align-items:center;justify-content:center;flex-direction:column;z-index:10}
+#over .score{font-size:40px;color:#ffd700;font-weight:bold}
+#over button{margin-top:16px;padding:12px 30px;font-size:16px;border:none;border-radius:8px;background:#ffd700;color:#1a1a2e;cursor:pointer;font-weight:bold}
+</style>
+</head>
+<body>
+<h2>🔢 2048</h2>
+<div id="info">方向键 / WASD 移动 · 相同数字合并</div>
+<div id="scoreBox">分数: 0</div>
+<div id="board"></div>
+<div id="over"><div class="score" id="finalScore">0</div><button onclick="restart()">再来一局</button></div>
+<script>
+const COLORS={2:'#eee4da',4:'#ede0c8',8:'#f2b179',16:'#f59563',32:'#f67c5f',64:'#f65e3b',128:'#edcf72',256:'#edcc61',512:'#edc850',1024:'#edc53f',2048:'#edc22e'};
+let grid,score,over;
+function restart(){grid=Array.from({length:4},()=>Array(4).fill(0));score=0;over=false;document.getElementById('over').style.display='none';addTile();addTile();render();}
+function addTile(){const empty=[];for(let r=0;r<4;r++)for(let c=0;c<4;c++)if(!grid[r][c])empty.push([r,c]);if(empty.length){const [r,c]=empty[Math.floor(Math.random()*empty.length)];grid[r][c]=Math.random()<0.9?2:4;}}
+function render(){
+  const b=document.getElementById('board');b.innerHTML='';
+  for(let r=0;r<4;r++)for(let c=0;c<4;c++){
+    const v=grid[r][c];
+    const d=document.createElement('div');
+    d.className='tile';
+    if(v){d.textContent=v;d.style.background=COLORS[v]||'#3c3a32';d.style.color=v>4?'#fff':'#776e65';d.style.fontSize=v>=1024?'22px':'30px';}
+    b.appendChild(d);
+  }
+  document.getElementById('scoreBox').textContent='分数: '+score;
+}
+function slide(row){const arr=row.filter(v=>v);for(let i=0;i<arr.length-1;i++){if(arr[i]===arr[i+1]){arr[i]*=2;score+=arr[i];arr.splice(i+1,1);}}while(arr.length<4)arr.push(0);return arr;}
+function move(dir){
+  let moved=false;
+  const newGrid=Array.from({length:4},()=>Array(4).fill(0));
+  for(let i=0;i<4;i++){
+    let line=[];
+    for(let j=0;j<4;j++){
+      const r=dir==='up'?j:dir==='down'?3-j:dir==='left'?i:3-i;
+      const c=dir==='left'?j:dir==='right'?3-j:dir==='up'?i:3-i;
+      line.push(grid[r][c]);
+    }
+    const sl=slide(line);
+    for(let j=0;j<4;j++){
+      const r=dir==='up'?j:dir==='down'?3-j:dir==='left'?i:3-i;
+      const c=dir==='left'?j:dir==='right'?3-j:dir==='up'?i:3-i;
+      if(newGrid[r][c]!==sl[j])moved=true;
+      newGrid[r][c]=sl[j];
+    }
+  }
+  if(moved){grid=newGrid;addTile();render();checkOver();}
+}
+function checkOver(){
+  for(let r=0;r<4;r++)for(let c=0;c<4;c++)if(!grid[r][c])return;
+  for(let r=0;r<4;r++)for(let c=0;c<4;c++){
+    if(c<3&&grid[r][c]===grid[r][c+1])return;
+    if(r<3&&grid[r][c]===grid[r+1][c])return;
+  }
+  over=true;document.getElementById('finalScore').textContent=score;document.getElementById('over').style.display='flex';
+  parent.postMessage({type:'game-score',game:'2048',score:score},'*');
+}
+document.addEventListener('keydown',e=>{
+  if(over)return;
+  const k=e.key.toLowerCase();
+  if(k==='arrowup'||k==='w')move('up');
+  else if(k==='arrowdown'||k==='s')move('down');
+  else if(k==='arrowleft'||k==='a')move('left');
+  else if(k==='arrowright'||k==='d')move('right');
+});
+restart();
+</script>
+</body>
+</html>
