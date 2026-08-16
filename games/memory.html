@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>记忆翻牌</title>
+<style>
+body{margin:0;background:#1a1a2e;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;color:#fff;overflow:hidden}
+h2{margin:0 0 10px;color:#ffd700}
+#info{font-size:13px;color:#aaa;margin-bottom:8px}
+#scoreBox{font-size:18px;color:#ffd700;margin-bottom:10px}
+#board{display:grid;grid-template-columns:repeat(4,90px);gap:10px}
+.card{width:90px;height:90px;background:#4d96ff;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:40px;cursor:pointer;user-select:none;transition:.2s}
+.card.flip{background:#fff}
+.card.matched{background:#4caf50;cursor:default}
+#over{display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);align-items:center;justify-content:center;flex-direction:column;z-index:10}
+#over .score{font-size:40px;color:#ffd700;font-weight:bold}
+#over button{margin-top:16px;padding:12px 30px;font-size:16px;border:none;border-radius:8px;background:#ffd700;color:#1a1a2e;cursor:pointer;font-weight:bold}
+</style>
+</head>
+<body>
+<h2>🃏 记忆翻牌</h2>
+<div id="info">翻开两张相同的牌配对</div>
+<div id="scoreBox">步数: 0 · 配对: 0/8</div>
+<div id="board"></div>
+<div id="over"><div class="score" id="finalScore">0</div><button onclick="restart()">再来一局</button></div>
+<script>
+const EMOJIS=['🍎','🍌','🍇','🍓','🍉','🍒','🍑','🥝'];
+let cards,flipped,matched,steps,lock;
+function restart(){
+  cards=[...EMOJIS,...EMOJIS].sort(()=>Math.random()-0.5);
+  flipped=[];matched=0;steps=0;lock=false;
+  document.getElementById('over').style.display='none';
+  document.getElementById('scoreBox').textContent='步数: 0 · 配对: 0/8';
+  const b=document.getElementById('board');b.innerHTML='';
+  cards.forEach((e,i)=>{
+    const d=document.createElement('div');
+    d.className='card';d.dataset.i=i;
+    d.onclick=()=>flip(d,i);
+    b.appendChild(d);
+  });
+}
+function flip(d,i){
+  if(lock||d.classList.contains('flip')||d.classList.contains('matched'))return;
+  d.classList.add('flip');d.textContent=cards[i];
+  flipped.push({d,i});
+  if(flipped.length===2){
+    steps++;lock=true;
+    document.getElementById('scoreBox').textContent='步数: '+steps+' · 配对: '+matched+'/8';
+    const [a,b]=flipped;
+    if(cards[a.i]===cards[b.i]){
+      a.d.classList.add('matched');b.d.classList.add('matched');
+      a.d.classList.remove('flip');b.d.classList.remove('flip');
+      matched++;flipped=[];lock=false;
+      document.getElementById('scoreBox').textContent='步数: '+steps+' · 配对: '+matched+'/8';
+      if(matched===8){gameOver();}
+    }else{
+      setTimeout(()=>{a.d.classList.remove('flip');b.d.classList.remove('flip');a.d.textContent='';b.d.textContent='';flipped=[];lock=false;},800);
+    }
+  }
+}
+function gameOver(){
+  const score=Math.max(0,1000-steps*20);
+  document.getElementById('finalScore').textContent='完成! 步数 '+steps+' · 得分 '+score;
+  document.getElementById('over').style.display='flex';
+  parent.postMessage({type:'game-score',game:'memory',score:score},'*');
+}
+restart();
+</script>
+</body>
+</html>
