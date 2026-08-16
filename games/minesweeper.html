@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>扫雷</title>
+<style>
+body{margin:0;background:#1a1a2e;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;color:#fff;overflow:hidden}
+h2{margin:0 0 10px;color:#ffd700}
+#info{font-size:13px;color:#aaa;margin-bottom:8px}
+#board{display:grid;gap:1px;background:#555;padding:4px;border-radius:6px}
+.cell{width:30px;height:30px;background:#8a8a8a;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:bold;cursor:pointer;user-select:none;border:1px solid #666}
+.cell.open{background:#c8c8c8;border:1px solid #aaa}
+.cell.mine{background:#e74c3c}
+#over{display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);align-items:center;justify-content:center;flex-direction:column;z-index:10}
+#over .score{font-size:40px;color:#ffd700;font-weight:bold}
+#over button{margin-top:16px;padding:12px 30px;font-size:16px;border:none;border-radius:8px;background:#ffd700;color:#1a1a2e;cursor:pointer;font-weight:bold}
+</style>
+</head>
+<body>
+<h2>💣 扫雷</h2>
+<div id="info">左键翻开 · 右键插旗 · 避开所有地雷</div>
+<div id="board"></div>
+<div id="over"><div class="score" id="finalScore">0</div><button onclick="restart()">再来一局</button></div>
+<script>
+const ROWS=9,COLS=9,MINES=10;
+let board,startTime,over,win;
+function restart(){
+  board=Array.from({length:ROWS},()=>Array.from({length:COLS},()=>({mine:false,open:false,flag:false,adj:0})));
+  let placed=0;
+  while(placed<MINES){const r=Math.floor(Math.random()*ROWS),c=Math.floor(Math.random()*COLS);if(!board[r][c].mine){board[r][c].mine=true;placed++;}}
+  for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){let n=0;for(let dr=-1;dr<=1;dr++)for(let dc=-1;dc<=1;dc++){const nr=r+dr,nc=c+dc;if(nr>=0&&nr<ROWS&&nc>=0&&nc<COLS&&board[nr][nc].mine)n++;}board[r][c].adj=n;}
+  startTime=Date.now();over=false;win=false;
+  document.getElementById('over').style.display='none';
+  render();
+}
+function render(){
+  const b=document.getElementById('board');
+  b.style.gridTemplateColumns=`repeat(${COLS},30px)`;
+  b.innerHTML='';
+  for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){
+    const cell=board[r][c];
+    const d=document.createElement('div');
+    d.className='cell'+(cell.open?' open':'');
+    if(cell.open){
+      if(cell.mine){d.textContent='💣';d.classList.add('mine');}
+      else if(cell.adj>0){d.textContent=cell.adj;d.style.color=['','#4d96ff','#4caf50','#e74c3c','#9b59b6','#ff8c42','#00d2ff','#ff6b6b','#888'][cell.adj];}
+    }else if(cell.flag){d.textContent='🚩';}
+    d.onclick=()=>reveal(r,c);
+    d.oncontextmenu=(e)=>{e.preventDefault();if(!cell.open){cell.flag=!cell.flag;render();}};
+    b.appendChild(d);
+  }
+}
+function reveal(r,c){
+  if(over||board[r][c].open||board[r][c].flag)return;
+  const cell=board[r][c];
+  if(cell.mine){cell.open=true;over=true;render();gameOver(false);return;}
+  cell.open=true;
+  if(cell.adj===0){for(let dr=-1;dr<=1;dr++)for(let dc=-1;dc<=1;dc++){const nr=r+dr,nc=c+dc;if(nr>=0&&nr<ROWS&&nc>=0&&nc<COLS&&!board[nr][nc].open&&!board[nr][nc].mine)reveal(nr,nc);}}
+  render();
+  checkWin();
+}
+function checkWin(){
+  let opened=0;
+  for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++)if(board[r][c].open)opened++;
+  if(opened===ROWS*COLS-MINES){over=true;win=true;gameOver(true);}
+}
+function gameOver(w){
+  const secs=Math.round((Date.now()-startTime)/1000);
+  document.getElementById('finalScore').textContent=w?('通关! '+secs+'秒'):'踩雷了';
+  document.getElementById('over').style.display='flex';
+  if(w)parent.postMessage({type:'game-score',game:'minesweeper',score:secs},'*');
+}
+restart();
+</script>
+</body>
+</html>
