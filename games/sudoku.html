@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>数独</title>
+<style>
+body{margin:0;background:#1a1a2e;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;color:#fff;overflow:hidden}
+h2{margin:0 0 10px;color:#ffd700}
+#info{font-size:13px;color:#aaa;margin-bottom:8px}
+#status{font-size:16px;color:#ffd700;margin-bottom:10px}
+#board{display:grid;grid-template-columns:repeat(9,44px);gap:1px;background:#555;padding:3px;border-radius:6px}
+.cell{width:44px;height:44px;background:#c8c8c8;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:bold;color:#333;cursor:pointer;user-select:none}
+.cell.given{background:#e8e8e8;color:#111}
+.cell.selected{background:#ffd700}
+.cell.wrong{color:#e74c3c}
+#numPad{display:flex;gap:6px;margin-top:14px}
+#numPad div{width:40px;height:40px;background:#3a3a5a;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px;cursor:pointer;color:#fff}
+#numPad div:hover{background:#4a4a6a}
+#over{display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);align-items:center;justify-content:center;flex-direction:column;z-index:10}
+#over .score{font-size:40px;color:#ffd700;font-weight:bold}
+#over button{margin-top:16px;padding:12px 30px;font-size:16px;border:none;border-radius:8px;background:#ffd700;color:#1a1a2e;cursor:pointer;font-weight:bold}
+</style>
+</head>
+<body>
+<h2>🧩 数独</h2>
+<div id="info">点击格子再选数字 · 每行每列每宫 1-9 不重复</div>
+<div id="status">完成数: 0</div>
+<div id="board"></div>
+<div id="numPad"></div>
+<div id="over"><div class="score" id="finalScore">0</div><button onclick="restart()">再来一局</button></div>
+<script>
+let grid,solution,selected,completed=0;
+function generate(){
+  const g=Array.from({length:9},()=>Array(9).fill(0));
+  fill(g);
+  return g;
+}
+function fill(g){
+  for(let r=0;r<9;r++)for(let c=0;c<9;c++){
+    if(g[r][c]===0){
+      const nums=[1,2,3,4,5,6,7,8,9].sort(()=>Math.random()-0.5);
+      for(let n of nums){
+        if(valid(g,r,c,n)){g[r][c]=n;if(fill(g))return true;g[r][c]=0;}
+      }
+      return false;
+    }
+  }
+  return true;
+}
+function valid(g,r,c,n){
+  for(let i=0;i<9;i++){if(g[r][i]===n||g[i][c]===n)return false;}
+  const br=Math.floor(r/3)*3,bc=Math.floor(c/3)*3;
+  for(let i=0;i<3;i++)for(let j=0;j<3;j++)if(g[br+i][bc+j]===n)return false;
+  return true;
+}
+function restart(){
+  solution=generate();
+  grid=solution.map(r=>r.slice());
+  // 挖空 45 格
+  let removed=0;
+  while(removed<45){
+    const r=Math.floor(Math.random()*9),c=Math.floor(Math.random()*9);
+    if(grid[r][c]!==0){grid[r][c]=0;removed++;}
+  }
+  selected=null;
+  document.getElementById('over').style.display='none';
+  document.getElementById('status').textContent='完成数: '+completed;
+  render();
+}
+function render(){
+  const b=document.getElementById('board');b.innerHTML='';
+  for(let r=0;r<9;r++)for(let c=0;c<9;c++){
+    const d=document.createElement('div');
+    d.className='cell'+(grid[r][c]!==0?' given':'')+(selected&&selected[0]===r&&selected[1]===c?' selected':'');
+    if(grid[r][c]!==0)d.textContent=grid[r][c];
+    d.onclick=()=>{selected=[r,c];render();};
+    b.appendChild(d);
+  }
+}
+function place(n){
+  if(!selected)return;
+  const [r,c]=selected;
+  if(solution[r][c]!==n){return;}
+  grid[r][c]=n;
+  render();
+  if(grid.every(row=>row.every(v=>v!==0))){
+    completed++;
+    document.getElementById('status').textContent='完成数: '+completed;
+    document.getElementById('finalScore').textContent='完成! 共完成 '+completed+' 局';
+    document.getElementById('over').style.display='flex';
+    parent.postMessage({type:'game-score',game:'sudoku',score:completed},'*');
+  }
+}
+const pad=document.getElementById('numPad');
+for(let i=1;i<=9;i++){
+  const d=document.createElement('div');
+  d.textContent=i;
+  d.onclick=()=>place(i);
+  pad.appendChild(d);
+}
+restart();
+</script>
+</body>
+</html>
