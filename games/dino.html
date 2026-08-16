@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>小恐龙跑酷</title>
+<style>
+body{margin:0;background:#1a1a2e;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;color:#fff;overflow:hidden}
+h2{margin:0 0 10px;color:#ffd700}
+#info{font-size:14px;color:#aaa;margin-bottom:8px}
+canvas{background:#222;border:2px solid #444;border-radius:8px}
+#over{display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);align-items:center;justify-content:center;flex-direction:column;z-index:10}
+#over .score{font-size:40px;color:#ffd700;font-weight:bold}
+#over button{margin-top:16px;padding:12px 30px;font-size:16px;border:none;border-radius:8px;background:#ffd700;color:#1a1a2e;cursor:pointer;font-weight:bold}
+</style>
+</head>
+<body>
+<h2>🦖 小恐龙跑酷</h2>
+<div id="info">空格/点击 跳跃 · 躲避仙人掌</div>
+<canvas id="c" width="800" height="300"></canvas>
+<div id="over"><div class="score" id="finalScore">0</div><button onclick="restart()">再来一局</button></div>
+<script>
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+let score=0,over=false,started=false;
+const dino={x:60,y:210,w:40,h:45,vy:0,jumping:false};
+const GRAV=0.8,JUMP=-14;
+let obstacles=[],frame=0,speed=6;
+function jump(){if(over)return;if(!started){started=true;frame=0;}if(!dino.jumping){dino.vy=JUMP;dino.jumping=true;}}
+function restart(){score=0;over=false;started=false;dino.y=210;dino.vy=0;dino.jumping=false;obstacles=[];speed=6;frame=0;document.getElementById('over').style.display='none';loop();}
+function loop(){
+  if(over)return;
+  ctx.clearRect(0,0,800,300);
+  // ground
+  ctx.fillStyle='#555';ctx.fillRect(0,255,800,2);
+  // dino
+  if(dino.jumping){dino.vy+=GRAV;dino.y+=dino.vy;if(dino.y>=210){dino.y=210;dino.vy=0;dino.jumping=false;}}
+  ctx.fillStyle='#4caf50';ctx.fillRect(dino.x,dino.y,dino.w,dino.h);
+  ctx.fillStyle='#fff';ctx.fillRect(dino.x+26,dino.y+8,6,6);
+  // obstacles
+  frame++;
+  if(frame%90===0){obstacles.push({x:800,y:225,w:20+Math.random()*15,h:30+Math.random()*25});}
+  obstacles.forEach(o=>{o.x-=speed;ctx.fillStyle='#e74c3c';ctx.fillRect(o.x,o.y,o.w,o.h);});
+  obstacles=obstacles.filter(o=>o.x>-40);
+  // collision
+  for(let o of obstacles){
+    if(dino.x<o.x+o.w&&dino.x+dino.w>o.x&&dino.y<o.y+o.h&&dino.y+dino.h>o.y){gameOver();return;}
+  }
+  score+=Math.floor(frame/10);
+  speed=6+Math.floor(score/500);
+  ctx.fillStyle='#ffd700';ctx.font='bold 20px sans-serif';ctx.fillText('分数: '+score,10,30);
+  requestAnimationFrame(loop);
+}
+function gameOver(){
+  over=true;
+  document.getElementById('finalScore').textContent=score;
+  document.getElementById('over').style.display='flex';
+  parent.postMessage({type:'game-score',game:'dino',score:score},'*');
+}
+document.addEventListener('keydown',e=>{if(e.code==='Space'){e.preventDefault();jump();}});
+cv.addEventListener('click',jump);
+loop();
+</script>
+</body>
+</html>
