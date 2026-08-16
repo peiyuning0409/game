@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>敲木鱼</title>
+<style>
+body{margin:0;background:#1a1a2e;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;color:#fff;overflow:hidden}
+h2{margin:0 0 10px;color:#ffd700}
+#info{font-size:13px;color:#aaa;margin-bottom:8px}
+#gongde{font-size:34px;color:#ffd700;font-weight:bold;margin:10px 0}
+#fish{font-size:120px;cursor:pointer;user-select:none;transition:transform .08s;filter:drop-shadow(0 0 20px rgba(255,215,0,.3))}
+#fish:active{transform:scale(.9)}
+#btn{margin-top:20px;padding:10px 24px;font-size:14px;border:none;border-radius:8px;background:#ffd700;color:#1a1a2e;cursor:pointer;font-weight:bold}
+#float{position:fixed;font-size:22px;color:#ffd700;pointer-events:none;animation:up 1s forwards}
+@keyframes up{from{opacity:1;transform:translateY(0)}to{opacity:0;transform:translateY(-80px)}}
+</style>
+</head>
+<body>
+<h2>🪵 敲木鱼</h2>
+<div id="info">点击木鱼积攒功德 · 解压神器</div>
+<div id="gongde">功德: 0</div>
+<div id="fish" onclick="knock(event)">🪵</div>
+<button id="btn" onclick="save()">保存功德</button>
+<script>
+let gongde=0;
+function knock(e){
+  gongde++;
+  document.getElementById('gongde').textContent='功德: '+gongde;
+  const f=document.createElement('div');
+  f.id='float';f.textContent='+1 功德';
+  f.style.left=(e.clientX-30)+'px';f.style.top=(e.clientY-40)+'px';
+  document.body.appendChild(f);
+  setTimeout(()=>f.remove(),1000);
+}
+function save(){
+  parent.postMessage({type:'game-score',game:'woodfish',score:gongde},'*');
+  document.getElementById('btn').textContent='已保存 ✓';
+  setTimeout(()=>document.getElementById('btn').textContent='保存功德',1500);
+}
+</script>
+</body>
+</html>
