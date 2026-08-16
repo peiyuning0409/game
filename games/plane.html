@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>飞机大战</title>
+<style>
+body{margin:0;background:#1a1a2e;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;color:#fff;overflow:hidden}
+h2{margin:0 0 10px;color:#ffd700}
+#info{font-size:13px;color:#aaa;margin-bottom:8px}
+canvas{background:#0a0a1a;border:2px solid #444;border-radius:8px}
+#over{display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);align-items:center;justify-content:center;flex-direction:column;z-index:10}
+#over .score{font-size:40px;color:#ffd700;font-weight:bold}
+#over button{margin-top:16px;padding:12px 30px;font-size:16px;border:none;border-radius:8px;background:#ffd700;color:#1a1a2e;cursor:pointer;font-weight:bold}
+</style>
+</head>
+<body>
+<h2>✈️ 飞机大战</h2>
+<div id="info">方向键/WASD 移动 · 空格 射击</div>
+<canvas id="c" width="400" height="600"></canvas>
+<div id="over"><div class="score" id="finalScore">0</div><button onclick="restart()">再来一局</button></div>
+<script>
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+let plane,bullets,enemies,score,over,raf,keys={},frame=0;
+function restart(){
+  plane={x:180,y:500,w:40,h:40};
+  bullets=[];enemies=[];score=0;over=false;frame=0;
+  document.getElementById('over').style.display='none';
+  cancelAnimationFrame(raf);
+  loop();
+}
+document.addEventListener('keydown',e=>{keys[e.key.toLowerCase()]=true;if(e.key===' '){e.preventDefault();shoot();}});
+document.addEventListener('keyup',e=>{keys[e.key.toLowerCase()]=false;});
+function shoot(){
+  if(over)return;
+  bullets.push({x:plane.x+18,y:plane.y-10});
+}
+function loop(){
+  ctx.clearRect(0,0,400,600);
+  frame++;
+  // move plane
+  if(keys['arrowleft']||keys['a'])plane.x-=6;
+  if(keys['arrowright']||keys['d'])plane.x+=6;
+  if(keys['arrowup']||keys['w'])plane.y-=6;
+  if(keys['arrowdown']||keys['s'])plane.y+=6;
+  plane.x=Math.max(0,Math.min(360,plane.x));
+  plane.y=Math.max(0,Math.min(560,plane.y));
+  // auto shoot
+  if(frame%12===0)shoot();
+  // spawn enemies
+  if(frame%40===0)enemies.push({x:Math.random()*360,y:-30,w:30,h:30});
+  // bullets
+  bullets.forEach(b=>b.y-=8);
+  bullets=bullets.filter(b=>b.y>0);
+  // enemies
+  enemies.forEach(e=>e.y+=3);
+  // collision
+  bullets.forEach(b=>{
+    enemies.forEach(e=>{
+      if(!e.hit&&b.x>e.x&&b.x<e.x+e.w&&b.y>e.y&&b.y<e.y+e.h){e.hit=true;b.hit=true;score+=10;}
+    });
+  });
+  bullets=bullets.filter(b=>!b.hit);
+  enemies=enemies.filter(e=>!e.hit&&e.y<600);
+  // plane hit
+  enemies.forEach(e=>{
+    if(plane.x<e.x+e.w&&plane.x+plane.w>e.x&&plane.y<e.y+e.h&&plane.y+plane.h>e.y){gameOver();return;}
+  });
+  // draw
+  ctx.fillStyle='#4d96ff';ctx.fillRect(plane.x,plane.y,plane.w,plane.h);
+  ctx.fillStyle='#ffd700';ctx.fillRect(plane.x+14,plane.y-8,12,10);
+  bullets.forEach(b=>{ctx.fillStyle='#ff6b6b';ctx.fillRect(b.x,b.y,4,12);});
+  enemies.forEach(e=>{ctx.fillStyle='#e74c3c';ctx.fillRect(e.x,e.y,e.w,e.h);});
+  ctx.fillStyle='#ffd700';ctx.font='bold 18px sans-serif';ctx.fillText('分数: '+score,10,25);
+  raf=requestAnimationFrame(loop);
+}
+function gameOver(){
+  over=true;cancelAnimationFrame(raf);
+  document.getElementById('finalScore').textContent=score;
+  document.getElementById('over').style.display='flex';
+  parent.postMessage({type:'game-score',game:'plane',score:score},'*');
+}
+restart();
+</script>
+</body>
+</html>
