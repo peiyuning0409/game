@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>经典游戏合集 · Game Hub</title>
+<script src="assets/api.js"></script>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+  background: linear-gradient(135deg,#0f0c29,#302b63,#24243e);
+  min-height:100vh; color:#fff;
+}
+/* ===== 登录/注册 ===== */
+#authWrap {
+  position:fixed; inset:0; display:flex; align-items:center; justify-content:center;
+  background: linear-gradient(135deg,#0f0c29,#302b63,#24243e); z-index:100;
+}
+.auth-box {
+  width:400px; max-width:92vw; background:rgba(255,255,255,.07);
+  border:1px solid rgba(255,255,255,.15); border-radius:20px; padding:40px 36px;
+  backdrop-filter: blur(10px); box-shadow:0 20px 60px rgba(0,0,0,.5);
+}
+.auth-box h1 { text-align:center; font-size:30px; margin-bottom:6px;
+  background:linear-gradient(90deg,#ffd700,#ff8c00); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+.auth-box .sub { text-align:center; color:#aaa; font-size:13px; margin-bottom:28px; }
+.auth-box input {
+  width:100%; padding:13px 16px; margin-bottom:14px; border-radius:10px;
+  border:1px solid rgba(255,255,255,.2); background:rgba(0,0,0,.3); color:#fff; font-size:15px; outline:none;
+}
+.auth-box input:focus { border-color:#ffd700; }
+.auth-box .btn {
+  width:100%; padding:13px; border:none; border-radius:10px; font-size:16px; font-weight:bold; cursor:pointer;
+  background:linear-gradient(90deg,#ffd700,#ff8c00); color:#1a1a2e; margin-top:6px; transition:.2s;
+}
+.auth-box .btn:hover { transform:translateY(-2px); box-shadow:0 8px 20px rgba(255,165,0,.4); }
+.auth-box .switch { text-align:center; margin-top:16px; color:#bbb; font-size:14px; }
+.auth-box .switch a { color:#ffd700; cursor:pointer; text-decoration:none; }
+.auth-box .msg { text-align:center; color:#ff6b6b; font-size:13px; min-height:18px; margin-top:4px; }
+.auth-box .tip { text-align:center; color:#888; font-size:12px; margin-top:14px; line-height:1.6; }
+/* ===== 主界面 ===== */
+#mainWrap { display:none; }
+.topbar {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:16px 28px; background:rgba(0,0,0,.35); border-bottom:1px solid rgba(255,255,255,.08);
+  position:sticky; top:0; z-index:50; backdrop-filter:blur(8px);
+}
+.topbar .logo { font-size:22px; font-weight:bold;
+  background:linear-gradient(90deg,#ffd700,#ff8c00); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+.topbar .user { display:flex; align-items:center; gap:14px; }
+.topbar .user .uname { color:#ffd700; font-weight:bold; }
+.topbar .btn-sm {
+  padding:7px 16px; border-radius:8px; border:1px solid rgba(255,255,255,.25);
+  background:transparent; color:#fff; cursor:pointer; font-size:13px; transition:.2s;
+}
+.topbar .btn-sm:hover { background:rgba(255,255,255,.12); }
+.tabs { display:flex; gap:6px; padding:14px 28px 0; }
+.tab {
+  padding:10px 24px; border-radius:10px 10px 0 0; cursor:pointer; font-size:15px;
+  background:rgba(255,255,255,.06); color:#ccc; border:1px solid transparent; border-bottom:none;
+}
+.tab.active { background:rgba(255,255,255,.12); color:#ffd700; font-weight:bold; }
+.content { padding:24px 28px 60px; }
+/* 游戏网格 */
+.grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:18px; }
+.game-card {
+  background:rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.1); border-radius:16px;
+  padding:22px 16px; text-align:center; cursor:pointer; transition:.25s; position:relative; overflow:hidden;
+}
+.game-card:hover { transform:translateY(-6px); border-color:#ffd700; box-shadow:0 12px 30px rgba(0,0,0,.4); }
+.game-card .icon { font-size:44px; margin-bottom:10px; }
+.game-card .gname { font-size:16px; font-weight:bold; margin-bottom:4px; }
+.game-card .gdesc { font-size:12px; color:#aaa; }
+.game-card .best { position:absolute; top:10px; right:10px; font-size:11px; color:#ffd700; background:rgba(0,0,0,.4); padding:3px 8px; border-radius:20px; }
+/* 排行榜 */
+.rank-table { width:100%; border-collapse:collapse; background:rgba(255,255,255,.05); border-radius:12px; overflow:hidden; }
+.rank-table th,.rank-table td { padding:12px 16px; text-align:center; font-size:14px; }
+.rank-table th { background:rgba(255,215,0,.15); color:#ffd700; }
+.rank-table tr { border-bottom:1px solid rgba(255,255,255,.06); }
+.rank-table tr:hover { background:rgba(255,255,255,.05); }
+.rank-table .me { color:#ffd700; font-weight:bold; }
+.medal { font-size:18px; }
+/* 游戏 iframe */
+#gameModal {
+  position:fixed; inset:0; background:rgba(0,0,0,.9); z-index:200; display:none;
+  flex-direction:column;
+}
+#gameModal .gm-head { display:flex; align-items:center; justify-content:space-between; padding:12px 20px; background:#1a1a2e; }
+#gameModal .gm-head .t { font-size:18px; font-weight:bold; color:#ffd700; }
+#gameModal iframe { flex:1; border:none; width:100%; background:#000; }
+/* 个人中心 */
+.stat-cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:16px; margin-bottom:24px; }
+.stat-card { background:rgba(255,255,255,.07); border-radius:14px; padding:20px; text-align:center; border:1px solid rgba(255,255,255,.1); }
+.stat-card .num { font-size:30px; font-weight:bold; color:#ffd700; }
+.stat-card .lbl { font-size:13px; color:#aaa; margin-top:6px; }
+.section-title { font-size:18px; font-weight:bold; margin:24px 0 14px; color:#ffd700; }
+.empty { text-align:center; color:#888; padding:40px; font-size:14px; }
+/* 提示 */
+#toast {
+  position:fixed; top:20px; left:50%; transform:translateX(-50%); z-index:999;
+  background:rgba(0,0,0,.85); color:#fff; padding:12px 26px; border-radius:30px; font-size:14px;
+  display:none; border:1px solid rgba(255,255,255,.2);
+}
+#toast.ok { border-color:#4caf50; } #toast.err { border-color:#ff6b6b; }
+.loading { text-align:center; color:#aaa; padding:30px; }
+</style>
+</head>
+<body>
+
+<!-- 登录/注册 -->
+<div id="authWrap">
+  <div class="auth-box">
+    <h1>🎮 经典游戏合集</h1>
+    <div class="sub">Game Hub · 登录后畅玩全部经典小游戏</div>
+    <input id="authUser" placeholder="用户名" autocomplete="off">
+    <input id="authPass" type="password" placeholder="密码">
+    <div class="msg" id="authMsg"></div>
+    <button class="btn" id="authBtn" onclick="doAuth()">登 录</button>
+    <div class="switch">还没有账号？<a onclick="toggleAuth()" id="authSwitch">立即注册</a></div>
+    <div class="tip">注册即自动登录 · 无需验证码<br>游玩数据与排名将自动保存</div>
+  </div>
+</div>
+
+<!-- 主界面 -->
+<div id="mainWrap">
+  <div class="topbar">
+    <div class="logo">🎮 经典游戏合集</div>
+    <div class="user">
+      <span>👤 <span class="uname" id="curUser"></span></span>
+      <button class="btn-sm" onclick="showRank()">🏆 排行榜</button>
+      <button class="btn-sm" onclick="logout()">退出登录</button>
+    </div>
+  </div>
+  <div class="tabs">
+    <div class="tab active" id="tabGames" onclick="switchTab('games')">🎮 游戏大厅</div>
+    <div class="tab" id="tabRank" onclick="switchTab('rank')">🏆 排行榜</div>
+    <div class="tab" id="tabMe" onclick="switchTab('me')">👤 个人中心</div>
+  </div>
+  <div class="content">
+    <div id="viewGames"></div>
+    <div id="viewRank" style="display:none"></div>
+    <div id="viewMe" style="display:none"></div>
+  </div>
+</div>
+
+<!-- 游戏弹窗 -->
+<div id="gameModal">
+  <div class="gm-head">
+    <div class="t" id="gmTitle"></div>
+    <button class="btn-sm" onclick="closeGame()">✕ 返回大厅</button>
+  </div>
+  <iframe id="gameFrame" src="about:blank"></iframe>
+</div>
+
+<div id="toast"></div>
+
+<script>
+/* ============ 全局状态 ============ */
+let currentUser = null;
+const GAMES = [
+  { id:'dino',        name:'小恐龙跑酷',   icon:'🦖', desc:'经典 Chrome 恐龙', score:'分数' },
+  { id:'tetris',      name:'俄罗斯方块',   icon:'🧱', desc:'经典下落方块',     score:'分数' },
+  { id:'snake',       name:'贪吃蛇',       icon:'🐍', desc:'经典贪吃蛇',       score:'分数' },
+  { id:'minesweeper', name:'扫雷',         icon:'💣', desc:'Windows 经典扫雷', score:'用时(秒)' },
+  { id:'2048',        name:'2048',         icon:'🔢', desc:'数字合成',         score:'分数' },
+  { id:'woodfish',    name:'敲木鱼',       icon:'🪵', desc:'解压敲木鱼',       score:'功德' },
+  { id:'whack',       name:'打地鼠',       icon:'🔨', desc:'经典打地鼠',       score:'分数' },
+  { id:'memory',      name:'记忆翻牌',     icon:'🃏', desc:'翻牌配对',         score:'分数' },
+  { id:'tictactoe',   name:'井字棋',       icon:'⭕', desc:'三子连线',         score:'胜场' },
+  { id:'gomoku',      name:'五子棋',       icon:'⚫', desc:'人机对战',         score:'胜场' },
+  { id:'breakout',    name:'打砖块',       icon:'🏓', desc:'经典弹球打砖块',   score:'分数' },
+  { id:'plane',       name:'飞机大战',     icon:'✈️', desc:'经典飞机射击',     score:'分数' },
+  { id:'guess',       name:'猜数字',       icon:'🔮', desc:'猜 1-100',         score:'猜中次数' },
+  { id:'sudoku',      name:'数独',         icon:'🧩', desc:'经典数独',         score:'完成数' },
+  { id:'match3',      name:'消消乐',       icon:'🍬', desc:'三消糖果',         score:'分数' },
+  { id:'rps',         name:'石头剪刀布',   icon:'✊', desc:'人机对决',         score:'胜场' },
+  { id:'typing',      name:'打字达人',     icon:'⌨️', desc:'英文打字',         score:'分数' },
+  { id:'catch',       name:'接水果',       icon:'🍎', desc:'接住掉落水果',     score:'分数' },
+  { id:'maze',        name:'迷宫',         icon:'🌀', desc:'走出迷宫',         score:'通关数' },
+  { id:'flappy',      name:'像素鸟',       icon:'🐤', desc:'经典 Flappy Bird', score:'分数' }
+];
+
+/* ============ 登录 / 注册 ============ */
+let isRegister = false;
+function toggleAuth() {
+  isRegister = !isRegister;
+  document.getElementById('authBtn').textContent = isRegister ? '注 册' : '登 录';
+  document.getElementById('authSwitch').textContent = isRegister ? '已有账号，去登录' : '立即注册';
+  document.getElementById('authMsg').textContent = '';
+}
+async function doAuth() {
+  const u = document.getElementById('authUser').value.trim();
+  const p = document.getElementById('authPass').value;
+  const msg = document.getElementById('authMsg');
+  if (!u || !p) { msg.textContent = '请输入用户名和密码'; return; }
+  if (u.length < 2 || u.length > 20) { msg.textContent = '用户名需 2-20 个字符'; return; }
+  if (p.length < 4) { msg.textContent = '密码至少 4 位'; return; }
+  msg.textContent = '处理中...';
+  try {
+    const data = await GH.readFile('data/users.json');
+    const users = data ? data.content.users : [];
+    const exist = users.find(x => x.username === u);
+    if (isRegister) {
+      if (exist) { msg.textContent = '该用户名已被注册'; return; }
+      const nu = { username: u, password: p, regTime: new Date().toLocaleString('zh-CN'), plays: 0 };
+      users.push(nu);
+      await GH.writeFile('data/users.json', { users }, data ? data.sha : undefined);
+      currentUser = nu;
+      toast('注册成功，欢迎加入！', 'ok');
+    } else {
+      if (!exist) { msg.textContent = '用户不存在，请先注册'; return; }
+      if (exist.password !== p) { msg.textContent = '密码错误'; return; }
+      currentUser = exist;
+      toast('登录成功！', 'ok');
+    }
+    localStorage.setItem('gh_user', u);
+    enterMain();
+  } catch (e) {
+    msg.textContent = '网络错误，请重试';
+    console.error(e);
+  }
+}
+function logout() {
+  localStorage.removeItem('gh_user');
+  location.reload();
+}
+
+/* ============ 进入主界面 ============ */
+function enterMain() {
+  document.getElementById('authWrap').style.display = 'none';
+  document.getElementById('mainWrap').style.display = 'block';
+  document.getElementById('curUser').textContent = currentUser.username;
+  renderGames();
+  loadMyStats();
+}
+
+/* ============ 游戏大厅 ============ */
+async function renderGames() {
+  const el = document.getElementById('viewGames');
+  el.innerHTML = '<div class="loading">加载中...</div>';
+  let bests = {};
+  try {
+    const data = await GH.readFile('data/scores.json');
+    if (data) {
+      data.content.scores.forEach(s => {
+        if (s.username === currentUser.username) {
+          if (!bests[s.game] || s.score > bests[s.game]) bests[s.game] = s.score;
+        }
+      });
+    }
+  } catch(e) {}
+  let html = '<div class="grid">';
+  GAMES.forEach(g => {
+    const best = bests[g.id] !== undefined ? bests[g.id] : null;
+    html += `<div class="game-card" onclick="openGame('${g.id}','${g.name}')">
+      <div class="icon">${g.icon}</div>
+      <div class="gname">${g.name}</div>
+      <div class="gdesc">${g.desc}</div>
+      ${best !== null ? `<div class="best">🏅 ${best}</div>` : ''}
+    </div>`;
+  });
+  html += '</div>';
+  el.innerHTML = html;
+}
+
+function openGame(id, name) {
+  document.getElementById('gmTitle').textContent = name;
+  document.getElementById('gameFrame').src = 'games/' + id + '.html';
+  document.getElementById('gameModal').style.display = 'flex';
+}
+function closeGame() {
+  document.getElementById('gameModal').style.display = 'none';
+  document.getElementById('gameFrame').src = 'about:blank';
+  renderGames();
+  loadMyStats();
+}
+
+/* 接收游戏分数 */
+window.addEventListener('message', async (e) => {
+  if (!e.data || e.data.type !== 'game-score') return;
+  const { game, score } = e.data;
+  if (!currentUser) return;
+  try {
+    await GH.updateFile('data/scores.json', (d) => {
+      d.scores.push({ username: currentUser.username, game, score, time: new Date().toLocaleString('zh-CN') });
+      return d;
+    });
+    await GH.updateFile('data/stats.json', (d) => {
+      d.stats.push({ username: currentUser.username, game, time: new Date().toLocaleString('zh-CN') });
+      return d;
+    });
+    await GH.updateFile('data/users.json', (d) => {
+      const u = d.users.find(x => x.username === currentUser.username);
+      if (u) u.plays = (u.plays || 0) + 1;
+      return d;
+    });
+    toast('成绩已保存！', 'ok');
+  } catch (err) {
+    toast('成绩保存失败，请重试', 'err');
+  }
+});
+
+/* ============ 排行榜 ============ */
+async function showRank() {
+  switchTab('rank');
+  const el = document.getElementById('viewRank');
+  el.innerHTML = '<div class="loading">加载中...</div>';
+  try {
+    const data = await GH.readFile('data/scores.json');
+    const scores = data ? data.content.scores : [];
+    let html = '<div class="section-title">🏆 各游戏排行榜</div>';
+    GAMES.forEach(g => {
+      const list = scores.filter(s => s.game === g.id);
+      const best = {};
+      list.forEach(s => {
+        if (!best[s.username] || s.score > best[s.username]) best[s.username] = s.score;
+      });
+      const sorted = Object.entries(best).sort((a,b) => b[1]-a[1]).slice(0,10);
+      html += `<div style="margin-bottom:26px">
+        <div style="font-size:16px;font-weight:bold;margin-bottom:10px">${g.icon} ${g.name}</div>`;
+      if (sorted.length === 0) {
+        html += '<div class="empty">暂无记录，快来抢占第一名！</div>';
+      } else {
+        html += '<table class="rank-table"><tr><th>排名</th><th>玩家</th><th>最高分</th></tr>';
+        sorted.forEach(([u, s], i) => {
+          const medal = i===0?'🥇':i===1?'🥈':i===2?'🥉':(i+1);
+          const me = u === currentUser.username ? ' class="me"' : '';
+          html += `<tr${me}><td><span class="medal">${medal}</span></td><td>${u}${u===currentUser.username?' (我)':''}</td><td>${s}</td></tr>`;
+        });
+        html += '</table>';
+      }
+      html += '</div>';
+    });
+    el.innerHTML = html;
+  } catch(e) {
+    el.innerHTML = '<div class="empty">加载失败，请刷新重试</div>';
+  }
+}
+
+/* ============ 个人中心 ============ */
+async function loadMyStats() {
+  const el = document.getElementById('viewMe');
+  el.innerHTML = '<div class="loading">加载中...</div>';
+  try {
+    const [sData, uData] = await Promise.all([
+      GH.readFile('data/scores.json'),
+      GH.readFile('data/users.json')
+    ]);
+    const scores = sData ? sData.content.scores : [];
+    const users = uData ? uData.content.users : [];
+    const me = users.find(x => x.username === currentUser.username) || currentUser;
+    const myScores = scores.filter(s => s.username === currentUser.username);
+    const gamesPlayed = new Set(myScores.map(s => s.game)).size;
+    const totalPlays = me.plays || myScores.length;
+    const bestScore = myScores.length ? Math.max(...myScores.map(s => s.score)) : 0;
+
+    let html = `<div class="stat-cards">
+      <div class="stat-card"><div class="num">${totalPlays}</div><div class="lbl">总游玩次数</div></div>
+      <div class="stat-card"><div class="num">${gamesPlayed}</div><div class="lbl">玩过的游戏</div></div>
+      <div class="stat-card"><div class="num">${bestScore}</div><div class="lbl">历史最高分</div></div>
+      <div class="stat-card"><div class="num">${me.regTime || '-'}</div><div class="lbl">注册时间</div></div>
+    </div>`;
+    html += '<div class="section-title">📜 我的游玩记录</div>';
+    if (myScores.length === 0) {
+      html += '<div class="empty">还没有游玩记录，去游戏大厅玩一局吧！</div>';
+    } else {
+      const recent = myScores.slice(-20).reverse();
+      html += '<table class="rank-table"><tr><th>游戏</th><th>成绩</th><th>时间</th></tr>';
+      recent.forEach(s => {
+        const g = GAMES.find(x => x.id === s.game);
+        html += `<tr><td>${g ? g.icon + ' ' + g.name : s.game}</td><td>${s.score}</td><td>${s.time}</td></tr>`;
+      });
+      html += '</table>';
+    }
+    el.innerHTML = html;
+  } catch(e) {
+    el.innerHTML = '<div class="empty">加载失败，请刷新重试</div>';
+  }
+}
+
+/* ============ Tab 切换 ============ */
+function switchTab(t) {
+  document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+  document.getElementById('tabGames').classList.toggle('active', t==='games');
+  document.getElementById('tabRank').classList.toggle('active', t==='rank');
+  document.getElementById('tabMe').classList.toggle('active', t==='me');
+  document.getElementById('viewGames').style.display = t==='games' ? 'block' : 'none';
+  document.getElementById('viewRank').style.display = t==='rank' ? 'block' : 'none';
+  document.getElementById('viewMe').style.display = t==='me' ? 'block' : 'none';
+  if (t==='rank') showRank();
+  if (t==='me') loadMyStats();
+}
+
+/* ============ Toast ============ */
+function toast(msg, type) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = type || '';
+  t.style.display = 'block';
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => t.style.display = 'none', 2500);
+}
+
+/* ============ 初始化 ============ */
+(async function init() {
+  const saved = localStorage.getItem('gh_user');
+  if (saved) {
+    try {
+      const data = await GH.readFile('data/users.json');
+      const users = data ? data.content.users : [];
+      const u = users.find(x => x.username === saved);
+      if (u) {
+        currentUser = u;
+        enterMain();
+        return;
+      }
+    } catch(e) {}
+  }
+  document.getElementById('authWrap').style.display = 'flex';
+})();
+</script>
+</body>
+</html>
