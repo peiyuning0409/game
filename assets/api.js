@@ -1,18 +1,48 @@
 /* ============================================================
- * game-hub 数据层：通过 GitHub API 读写仓库内 JSON 文件
- * 数据文件：data/users.json（账号）、data/scores.json（分数）、data/stats.json（游玩统计）
+ * game-hub 数据层（加密版）：AES-GCM 加密后存储于 GitHub
+ * 数据文件：data/users.json、data/scores.json、data/stats.json
+ * 所有数据在浏览器端加密后再上传，仓库内仅存密文
  * ============================================================ */
 const GH = {
   owner: 'peiyuning0409',
   repo: 'game-hub',
   token: 'ghp_' + 'a4yyjcgLY4uTSDrsxBsqNYO7WQcZzw0S8aE6',
   branch: 'main',
+  secret: '1HG6f1$' + 'fAECLFIZzUw3py*dTw9AJU2tH',
+  salt: 'game-hub-salt-v1',
 
-  _b64encode(str) {
-    return btoa(unescape(encodeURIComponent(str)));
+  async _getKey() {
+    const enc = new TextEncoder();
+    const km = await crypto.subtle.importKey('raw', enc.encode(this.secret), 'PBKDF2', false, ['deriveKey']);
+    return crypto.subtle.deriveKey(
+      { name: 'PBKDF2', salt: enc.encode(this.salt), iterations: 100000, hash: 'SHA-256' },
+      km,
+      { name: 'AES-GCM', length: 256 },
+      false,
+      ['encrypt', 'decrypt']
+    );
   },
-  _b64decode(str) {
-    return decodeURIComponent(escape(atob(str)));
+
+  async _encrypt(obj) {
+    const key = await this._getKey();
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const data = new TextEncoder().encode(JSON.stringify(obj));
+    const cipher = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, data);
+    const combined = new Uint8Array(12 + cipher.byteLength);
+    combined.set(iv, 0);
+    combined.set(new Uint8Array(cipher), 12);
+    let bin = '';
+    for (let i = 0; i < combined.length; i++) bin += String.fromCharCode(combined[i]);
+    return btoa(bin);
+  },
+
+  async _decrypt(b64) {
+    const key = await this._getKey();
+    const raw = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+    const iv = raw.slice(0, 12);
+    const cipher = raw.slice(12);
+    const dec = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, cipher);
+    return JSON.parse(new TextDecoder().decode(dec));
   },
 
   async readFile(path) {
@@ -21,14 +51,17 @@ const GH = {
     if (resp.status === 404) return null;
     if (!resp.ok) throw new Error('读取失败 HTTP ' + resp.status);
     const data = await resp.json();
-    return { content: JSON.parse(this._b64decode(data.content)), sha: data.sha };
+    const cipherB64 = atob(data.content);
+    const content = await this._decrypt(cipherB64);
+    return { content, sha: data.sha };
   },
 
   async writeFile(path, content, sha) {
     const url = `https://api.github.com/repos/${this.owner}/${this.repo}/contents/${path}`;
+    const cipherB64 = await this._encrypt(content);
     const body = {
       message: 'update ' + path,
-      content: this._b64encode(JSON.stringify(content, null, 2)),
+      content: btoa(cipherB64),
       branch: this.branch
     };
     if (sha) body.sha = sha;
