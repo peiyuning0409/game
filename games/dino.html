@@ -2,52 +2,80 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <title>小恐龙跑酷</title>
 <style>
-body{margin:0;background:#1a1a2e;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;color:#fff;overflow:hidden}
-h2{margin:0 0 10px;color:#ffd700}
-#info{font-size:14px;color:#aaa;margin-bottom:8px}
-canvas{background:#222;border:2px solid #444;border-radius:8px}
-#over{display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);align-items:center;justify-content:center;flex-direction:column;z-index:10}
-#over .score{font-size:40px;color:#ffd700;font-weight:bold}
-#over button{margin-top:16px;padding:12px 30px;font-size:16px;border:none;border-radius:8px;background:#ffd700;color:#1a1a2e;cursor:pointer;font-weight:bold}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;min-height:100vh;background:linear-gradient(135deg,#0f0c29 0%,#302b63 50%,#24243e 100%);display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:'Segoe UI',system-ui,sans-serif;color:#fff;overflow:hidden;padding:12px}
+h2{margin:0 0 6px;font-size:22px;background:linear-gradient(90deg,#ffd700,#ff8c42);-webkit-background-clip:text;background-clip:text;color:transparent;letter-spacing:2px}
+#info{font-size:12px;color:rgba(255,255,255,.55);margin-bottom:10px;text-align:center}
+#hud{display:flex;gap:24px;margin-bottom:10px;background:rgba(255,255,255,.06);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:8px 22px;box-shadow:0 8px 24px rgba(0,0,0,.35)}
+#hud .lbl{color:rgba(255,255,255,.55);font-size:11px;letter-spacing:1px}
+#hud .val{font-size:20px;color:#ffd700;font-weight:700;text-shadow:0 0 12px rgba(255,215,0,.4)}
+#c{background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.15);border-radius:12px;display:block;box-shadow:0 12px 40px rgba(0,0,0,.45);touch-action:none}
+#over{display:none;position:fixed;inset:0;background:rgba(10,8,30,.75);backdrop-filter:blur(6px);align-items:center;justify-content:center;flex-direction:column;z-index:20;animation:fadeIn .3s}
+#over .score{font-size:44px;color:#ffd700;font-weight:800;text-shadow:0 0 20px rgba(255,215,0,.5)}
+#over .sub{color:rgba(255,255,255,.6);margin-top:6px;font-size:14px}
+button{margin-top:18px;padding:12px 34px;font-size:15px;border:none;border-radius:12px;background:linear-gradient(135deg,#ffd700,#ff8c42);color:#1a1a2e;cursor:pointer;font-weight:700;box-shadow:0 6px 20px rgba(255,140,66,.35);transition:transform .15s,box-shadow .15s}
+button:hover{transform:translateY(-2px) scale(1.03);box-shadow:0 10px 26px rgba(255,140,66,.5)}
+button:active{transform:scale(.96)}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@media(max-width:640px){#c{max-width:min(94vw,800px);height:auto}}
 </style>
 </head>
 <body>
-<h2>🦖 小恐龙跑酷</h2>
-<div id="info">空格/点击 跳跃 · 躲避仙人掌</div>
+<h2>小恐龙跑酷</h2>
+<div id="info">空格 / 点击 / 触摸 跳跃 · 躲避仙人掌</div>
+<div id="hud">
+  <div><div class="lbl">分数</div><div class="val" id="scoreBox">0</div></div>
+  <div><div class="lbl">速度</div><div class="val" id="spdBox">1</div></div>
+</div>
 <canvas id="c" width="800" height="300"></canvas>
-<div id="over"><div class="score" id="finalScore">0</div><button onclick="restart()">再来一局</button></div>
+<div id="over"><div class="score" id="finalScore">0</div><div class="sub">本局得分</div><button onclick="restart()">再来一局</button></div>
 <script>
 const cv=document.getElementById('c'),ctx=cv.getContext('2d');
 let score=0,over=false,started=false;
 const dino={x:60,y:210,w:40,h:45,vy:0,jumping:false};
 const GRAV=0.8,JUMP=-14;
 let obstacles=[],frame=0,speed=6;
-function jump(){if(over)return;if(!started){started=true;frame=0;}if(!dino.jumping){dino.vy=JUMP;dino.jumping=true;}}
-function restart(){score=0;over=false;started=false;dino.y=210;dino.vy=0;dino.jumping=false;obstacles=[];speed=6;frame=0;document.getElementById('over').style.display='none';loop();}
+let actx=null;
+function sfx(freq,dur,type,vol,slide){
+  try{
+    actx=actx||new (window.AudioContext||window.webkitAudioContext)();
+    const o=actx.createOscillator(),g=actx.createGain();
+    o.type=type||'square';o.frequency.value=freq;
+    if(slide)o.frequency.exponentialRampToValueAtTime(Math.max(30,freq+slide),actx.currentTime+dur);
+    g.gain.setValueAtTime(vol||.12,actx.currentTime);
+    g.gain.exponentialRampToValueAtTime(.001,actx.currentTime+dur);
+    o.connect(g);g.connect(actx.destination);
+    o.start();o.stop(actx.currentTime+dur);
+  }catch(e){}
+}
+const sJump=()=>sfx(300,.08,'triangle',.1,200);
+const sOver=()=>{sfx(400,.2,'sawtooth',.12,-200);setTimeout(()=>sfx(200,.3,'sawtooth',.12,-120),150);};
+function jump(){if(over)return;if(!started){started=true;frame=0;}if(!dino.jumping){dino.vy=JUMP;dino.jumping=true;sJump();}}
+function restart(){score=0;over=false;started=false;dino.y=210;dino.vy=0;dino.jumping=false;obstacles=[];speed=6;frame=0;document.getElementById('over').style.display='none';document.getElementById('scoreBox').textContent=0;document.getElementById('spdBox').textContent=1;loop();}
 function loop(){
   if(over)return;
   ctx.clearRect(0,0,800,300);
-  // ground
-  ctx.fillStyle='#555';ctx.fillRect(0,255,800,2);
-  // dino
+  ctx.fillStyle='rgba(255,255,255,.05)';ctx.fillRect(0,0,800,300);
+  ctx.fillStyle='rgba(255,255,255,.3)';ctx.fillRect(0,255,800,2);
   if(dino.jumping){dino.vy+=GRAV;dino.y+=dino.vy;if(dino.y>=210){dino.y=210;dino.vy=0;dino.jumping=false;}}
+  ctx.shadowColor='#4caf50';ctx.shadowBlur=12;
   ctx.fillStyle='#4caf50';ctx.fillRect(dino.x,dino.y,dino.w,dino.h);
+  ctx.shadowBlur=0;
   ctx.fillStyle='#fff';ctx.fillRect(dino.x+26,dino.y+8,6,6);
-  // obstacles
   frame++;
   if(frame%90===0){obstacles.push({x:800,y:225,w:20+Math.random()*15,h:30+Math.random()*25});}
   obstacles.forEach(o=>{o.x-=speed;ctx.fillStyle='#e74c3c';ctx.fillRect(o.x,o.y,o.w,o.h);});
   obstacles=obstacles.filter(o=>o.x>-40);
-  // collision
   for(let o of obstacles){
-    if(dino.x<o.x+o.w&&dino.x+dino.w>o.x&&dino.y<o.y+o.h&&dino.y+dino.h>o.y){gameOver();return;}
+    if(dino.x<o.x+o.w&&dino.x+dino.w>o.x&&dino.y<o.y+o.h&&dino.y+dino.h>o.y){sOver();gameOver();return;}
   }
   score+=Math.floor(frame/10);
   speed=6+Math.floor(score/500);
-  ctx.fillStyle='#ffd700';ctx.font='bold 20px sans-serif';ctx.fillText('分数: '+score,10,30);
+  document.getElementById('scoreBox').textContent=score;
+  document.getElementById('spdBox').textContent=1+Math.floor(score/500);
   requestAnimationFrame(loop);
 }
 function gameOver(){
@@ -58,6 +86,7 @@ function gameOver(){
 }
 document.addEventListener('keydown',e=>{if(e.code==='Space'){e.preventDefault();jump();}});
 cv.addEventListener('click',jump);
+cv.addEventListener('touchstart',e=>{e.preventDefault();jump();},{passive:false});
 loop();
 </script>
 </body>
