@@ -2,61 +2,102 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <title>打地鼠</title>
 <style>
-body{margin:0;background:#1a1a2e;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;color:#fff;overflow:hidden}
-h2{margin:0 0 10px;color:#ffd700}
-#info{font-size:13px;color:#aaa;margin-bottom:8px}
-#scoreBox{font-size:20px;color:#ffd700;margin-bottom:10px}
-#board{display:grid;grid-template-columns:repeat(3,110px);gap:12px}
-.hole{width:110px;height:110px;background:#3a3a5a;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:60px;cursor:pointer;user-select:none;position:relative;overflow:hidden}
-.hole .mole{position:absolute;bottom:-70px;transition:bottom .1s;font-size:60px}
-.hole.up .mole{bottom:10px}
-#over{display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);align-items:center;justify-content:center;flex-direction:column;z-index:10}
-#over .score{font-size:40px;color:#ffd700;font-weight:bold}
-#over button{margin-top:16px;padding:12px 30px;font-size:16px;border:none;border-radius:8px;background:#ffd700;color:#1a1a2e;cursor:pointer;font-weight:bold}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;min-height:100vh;background:linear-gradient(135deg,#0f0c29 0%,#302b63 50%,#24243e 100%);display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:'Segoe UI',system-ui,sans-serif;color:#fff;overflow:hidden;padding:12px}
+h2{margin:0 0 6px;font-size:22px;background:linear-gradient(90deg,#ffd700,#ff8c42);-webkit-background-clip:text;background-clip:text;color:transparent;letter-spacing:2px}
+#info{font-size:12px;color:rgba(255,255,255,.55);margin-bottom:10px;text-align:center}
+#hud{display:flex;gap:24px;margin-bottom:10px;background:rgba(255,255,255,.06);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:8px 22px;box-shadow:0 8px 24px rgba(0,0,0,.35)}
+#hud .lbl{color:rgba(255,255,255,.55);font-size:11px;letter-spacing:1px}
+#hud .val{font-size:20px;color:#ffd700;font-weight:700;text-shadow:0 0 12px rgba(255,215,0,.4)}
+#board{display:grid;grid-template-columns:repeat(3,1fr);gap:min(3vw,12px);width:min(90vw,360px)}
+.hole{aspect-ratio:1;border-radius:50%;background:radial-gradient(circle at 50% 60%,#3a3a5a,#1a1a3a);display:flex;align-items:center;justify-content:center;font-size:min(14vw,56px);cursor:pointer;user-select:none;position:relative;overflow:hidden;transition:transform .1s}
+.hole:active{transform:scale(.92)}
+.hole .mole{position:absolute;bottom:-60%;transition:bottom .15s ease-out;font-size:min(14vw,56px)}
+.hole.up .mole{bottom:8%}
+.hole.hit{animation:hit .2s}
+@keyframes hit{0%{transform:scale(1)}50%{transform:scale(1.25)}100%{transform:scale(1)}}
+#over{display:none;position:fixed;inset:0;background:rgba(10,8,30,.75);backdrop-filter:blur(6px);align-items:center;justify-content:center;flex-direction:column;z-index:20;animation:fadeIn .3s}
+#over .score{font-size:44px;color:#ffd700;font-weight:800;text-shadow:0 0 20px rgba(255,215,0,.5)}
+#over .sub{color:rgba(255,255,255,.6);margin-top:6px;font-size:14px}
+button{margin-top:18px;padding:12px 34px;font-size:15px;border:none;border-radius:12px;background:linear-gradient(135deg,#ffd700,#ff8c42);color:#1a1a2e;cursor:pointer;font-weight:700;box-shadow:0 6px 20px rgba(255,140,66,.35);transition:transform .15s,box-shadow .15s}
+button:hover{transform:translateY(-2px) scale(1.03);box-shadow:0 10px 26px rgba(255,140,66,.5)}
+button:active{transform:scale(.96)}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
 </style>
 </head>
 <body>
-<h2>🔨 打地鼠</h2>
-<div id="info">点击冒出的地鼠 · 30秒倒计时</div>
-<div id="scoreBox">分数: 0 · 时间: 30s</div>
+<h2>打地鼠</h2>
+<div id="info">30 秒内点击冒出的地鼠 · 打中加分</div>
+<div id="hud">
+  <div><div class="lbl">时间</div><div class="val" id="timeBox">30</div></div>
+  <div><div class="lbl">得分</div><div class="val" id="scoreBox">0</div></div>
+</div>
 <div id="board"></div>
-<div id="over"><div class="score" id="finalScore">0</div><button onclick="restart()">再来一局</button></div>
+<div id="over"><div class="score" id="finalScore">0</div><div class="sub">本局得分</div><button onclick="restart()">再来一局</button></div>
 <script>
-let score=0,time=30,over=false,timer,spawnTimer;
-const board=document.getElementById('board');
-for(let i=0;i<9;i++){
-  const h=document.createElement('div');
-  h.className='hole';
-  h.innerHTML='<div class="mole">🐹</div>';
-  h.onclick=()=>{if(h.classList.contains('up')){score+=10;h.classList.remove('up');document.getElementById('scoreBox').textContent='分数: '+score+' · 时间: '+time+'s';}};
-  board.appendChild(h);
+let score,timeLeft,timer,spawnTimer,over;
+let actx=null;
+function sfx(freq,dur,type,vol,slide){
+  try{
+    actx=actx||new (window.AudioContext||window.webkitAudioContext)();
+    const o=actx.createOscillator(),g=actx.createGain();
+    o.type=type||'square';o.frequency.value=freq;
+    if(slide)o.frequency.exponentialRampToValueAtTime(Math.max(30,freq+slide),actx.currentTime+dur);
+    g.gain.setValueAtTime(vol||.12,actx.currentTime);
+    g.gain.exponentialRampToValueAtTime(.001,actx.currentTime+dur);
+    o.connect(g);g.connect(actx.destination);
+    o.start();o.stop(actx.currentTime+dur);
+  }catch(e){}
 }
-function spawn(){
-  if(over)return;
-  const holes=document.querySelectorAll('.hole');
-  holes.forEach(h=>h.classList.remove('up'));
-  const h=holes[Math.floor(Math.random()*holes.length)];
-  h.classList.add('up');
-  setTimeout(()=>h.classList.remove('up'),800);
-}
+const sHit=()=>{sfx(600,.08,'triangle',.12);setTimeout(()=>sfx(900,.08,'triangle',.08),40);};
+const sTick=()=>sfx(300,.03,'square',.05);
+const sOver=()=>{sfx(400,.2,'sawtooth',.12,-200);setTimeout(()=>sfx(200,.3,'sawtooth',.12,-120),150);};
 function restart(){
-  score=0;time=30;over=false;
+  score=0;timeLeft=30;over=false;
   document.getElementById('over').style.display='none';
-  document.getElementById('scoreBox').textContent='分数: 0 · 时间: 30s';
+  document.getElementById('scoreBox').textContent=0;
+  document.getElementById('timeBox').textContent=30;
   clearInterval(timer);clearInterval(spawnTimer);
+  const b=document.getElementById('board');b.innerHTML='';
+  for(let i=0;i<9;i++){
+    const h=document.createElement('div');
+    h.className='hole';
+    h.innerHTML='<div class="mole">🐹</div>';
+    h.onclick=()=>hit(h);
+    b.appendChild(h);
+  }
   spawnTimer=setInterval(spawn,700);
   timer=setInterval(()=>{
-    time--;
-    document.getElementById('scoreBox').textContent='分数: '+score+' · 时间: '+time+'s';
-    if(time<=0){gameOver();}
+    timeLeft--;
+    document.getElementById('timeBox').textContent=timeLeft;
+    if(timeLeft<=5)sTick();
+    if(timeLeft<=0){clearInterval(timer);clearInterval(spawnTimer);gameOver();}
   },1000);
 }
+function spawn(){
+  const holes=document.querySelectorAll('.hole');
+  const idx=Math.floor(Math.random()*holes.length);
+  const h=holes[idx];
+  if(h.classList.contains('up'))return;
+  h.classList.add('up');
+  setTimeout(()=>h.classList.remove('up'),900);
+}
+function hit(h){
+  if(over)return;
+  if(h.classList.contains('up')){
+    h.classList.remove('up');
+    h.classList.add('hit');
+    setTimeout(()=>h.classList.remove('hit'),200);
+    score+=10;
+    document.getElementById('scoreBox').textContent=score;
+    sHit();
+  }
+}
 function gameOver(){
-  over=true;clearInterval(timer);clearInterval(spawnTimer);
-  document.querySelectorAll('.hole').forEach(h=>h.classList.remove('up'));
+  over=true;sOver();
   document.getElementById('finalScore').textContent=score;
   document.getElementById('over').style.display='flex';
   parent.postMessage({type:'game-score',game:'whack',score:score},'*');
