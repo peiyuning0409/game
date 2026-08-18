@@ -2,74 +2,141 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <title>扫雷</title>
 <style>
-body{margin:0;background:#1a1a2e;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;color:#fff;overflow:hidden}
-h2{margin:0 0 10px;color:#ffd700}
-#info{font-size:13px;color:#aaa;margin-bottom:8px}
-#board{display:grid;gap:1px;background:#555;padding:4px;border-radius:6px}
-.cell{width:30px;height:30px;background:#8a8a8a;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:bold;cursor:pointer;user-select:none;border:1px solid #666}
-.cell.open{background:#c8c8c8;border:1px solid #aaa}
-.cell.mine{background:#e74c3c}
-#over{display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);align-items:center;justify-content:center;flex-direction:column;z-index:10}
-#over .score{font-size:40px;color:#ffd700;font-weight:bold}
-#over button{margin-top:16px;padding:12px 30px;font-size:16px;border:none;border-radius:8px;background:#ffd700;color:#1a1a2e;cursor:pointer;font-weight:bold}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;min-height:100vh;background:linear-gradient(135deg,#0f0c29 0%,#302b63 50%,#24243e 100%);display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:'Segoe UI',system-ui,sans-serif;color:#fff;overflow:hidden;padding:12px}
+h2{margin:0 0 6px;font-size:22px;background:linear-gradient(90deg,#ffd700,#ff8c42);-webkit-background-clip:text;background-clip:text;color:transparent;letter-spacing:2px}
+#info{font-size:12px;color:rgba(255,255,255,.55);margin-bottom:10px;text-align:center}
+#hud{display:flex;gap:24px;margin-bottom:10px;background:rgba(255,255,255,.06);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:8px 22px;box-shadow:0 8px 24px rgba(0,0,0,.35)}
+#hud .lbl{color:rgba(255,255,255,.55);font-size:11px;letter-spacing:1px}
+#hud .val{font-size:20px;color:#ffd700;font-weight:700;text-shadow:0 0 12px rgba(255,215,0,.4)}
+#board{display:grid;grid-template-columns:repeat(9,1fr);gap:3px;background:rgba(255,255,255,.08);padding:6px;border-radius:14px;width:min(92vw,400px);box-shadow:0 12px 40px rgba(0,0,0,.45)}
+.cell{aspect-ratio:1;border-radius:6px;background:rgba(255,255,255,.12);display:flex;align-items:center;justify-content:center;font-size:min(4.5vw,18px);font-weight:700;cursor:pointer;user-select:none;transition:background .15s,transform .1s}
+.cell:active{transform:scale(.9)}
+.cell.open{background:rgba(255,255,255,.05);cursor:default}
+.cell.boom{background:#e74c3c;animation:boom .3s}
+@keyframes boom{0%{transform:scale(1)}50%{transform:scale(1.3)}100%{transform:scale(1)}}
+#over{display:none;position:fixed;inset:0;background:rgba(10,8,30,.75);backdrop-filter:blur(6px);align-items:center;justify-content:center;flex-direction:column;z-index:20;animation:fadeIn .3s}
+#over .score{font-size:44px;color:#ffd700;font-weight:800;text-shadow:0 0 20px rgba(255,215,0,.5)}
+#over .sub{color:rgba(255,255,255,.6);margin-top:6px;font-size:14px}
+button{margin-top:18px;padding:12px 34px;font-size:15px;border:none;border-radius:12px;background:linear-gradient(135deg,#ffd700,#ff8c42);color:#1a1a2e;cursor:pointer;font-weight:700;box-shadow:0 6px 20px rgba(255,140,66,.35);transition:transform .15s,box-shadow .15s}
+button:hover{transform:translateY(-2px) scale(1.03);box-shadow:0 10px 26px rgba(255,140,66,.5)}
+button:active{transform:scale(.96)}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
 </style>
 </head>
 <body>
-<h2>💣 扫雷</h2>
-<div id="info">左键翻开 · 右键插旗 · 避开所有地雷</div>
+<h2>扫雷</h2>
+<div id="info">左键翻开 · 右键/长按插旗 · 避开所有地雷</div>
+<div id="hud">
+  <div><div class="lbl">地雷</div><div class="val" id="mineBox">10</div></div>
+  <div><div class="lbl">已开</div><div class="val" id="openBox">0</div></div>
+</div>
 <div id="board"></div>
-<div id="over"><div class="score" id="finalScore">0</div><button onclick="restart()">再来一局</button></div>
+<div id="over"><div class="score" id="finalScore">0</div><div class="sub">本局结果</div><button onclick="restart()">再来一局</button></div>
 <script>
 const ROWS=9,COLS=9,MINES=10;
-let board,startTime,over,win;
+let grid,opened,flags,over;
+let actx=null;
+function sfx(freq,dur,type,vol,slide){
+  try{
+    actx=actx||new (window.AudioContext||window.webkitAudioContext)();
+    const o=actx.createOscillator(),g=actx.createGain();
+    o.type=type||'square';o.frequency.value=freq;
+    if(slide)o.frequency.exponentialRampToValueAtTime(Math.max(30,freq+slide),actx.currentTime+dur);
+    g.gain.setValueAtTime(vol||.12,actx.currentTime);
+    g.gain.exponentialRampToValueAtTime(.001,actx.currentTime+dur);
+    o.connect(g);g.connect(actx.destination);
+    o.start();o.stop(actx.currentTime+dur);
+  }catch(e){}
+}
+const sReveal=()=>sfx(300,.04,'square',.05);
+const sFlag=()=>sfx(500,.05,'triangle',.08);
+const sBoom=()=>{sfx(300,.3,'sawtooth',.15,-150);setTimeout(()=>sfx(150,.4,'sawtooth',.12,-80),120);};
+const sWin=()=>{sfx(523,.12,'triangle',.12);setTimeout(()=>sfx(659,.12,'triangle',.12),120);setTimeout(()=>sfx(784,.2,'triangle',.12),240);};
 function restart(){
-  board=Array.from({length:ROWS},()=>Array.from({length:COLS},()=>({mine:false,open:false,flag:false,adj:0})));
+  grid=Array.from({length:ROWS},()=>Array.from({length:COLS},()=>({mine:false,adj:0,open:false,flag:false})));
   let placed=0;
-  while(placed<MINES){const r=Math.floor(Math.random()*ROWS),c=Math.floor(Math.random()*COLS);if(!board[r][c].mine){board[r][c].mine=true;placed++;}}
-  for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){let n=0;for(let dr=-1;dr<=1;dr++)for(let dc=-1;dc<=1;dc++){const nr=r+dr,nc=c+dc;if(nr>=0&&nr<ROWS&&nc>=0&&nc<COLS&&board[nr][nc].mine)n++;}board[r][c].adj=n;}
-  startTime=Date.now();over=false;win=false;
+  while(placed<MINES){
+    const r=Math.floor(Math.random()*ROWS),c=Math.floor(Math.random()*COLS);
+    if(!grid[r][c].mine){grid[r][c].mine=true;placed++;}
+  }
+  for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){
+    let n=0;
+    for(let dr=-1;dr<=1;dr++)for(let dc=-1;dc<=1;dc++){
+      const nr=r+dr,nc=c+dc;
+      if(nr>=0&&nr<ROWS&&nc>=0&&nc<COLS&&grid[nr][nc].mine)n++;
+    }
+    grid[r][c].adj=n;
+  }
+  opened=0;flags=0;over=false;
   document.getElementById('over').style.display='none';
+  document.getElementById('mineBox').textContent=MINES;
+  document.getElementById('openBox').textContent=0;
   render();
 }
 function render(){
-  const b=document.getElementById('board');
-  b.style.gridTemplateColumns=`repeat(${COLS},30px)`;
-  b.innerHTML='';
+  const b=document.getElementById('board');b.innerHTML='';
   for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){
-    const cell=board[r][c];
+    const cell=grid[r][c];
     const d=document.createElement('div');
-    d.className='cell'+(cell.open?' open':'');
+    d.className='cell';
     if(cell.open){
-      if(cell.mine){d.textContent='💣';d.classList.add('mine');}
-      else if(cell.adj>0){d.textContent=cell.adj;d.style.color=['','#4d96ff','#4caf50','#e74c3c','#9b59b6','#ff8c42','#00d2ff','#ff6b6b','#888'][cell.adj];}
-    }else if(cell.flag){d.textContent='🚩';}
+      d.classList.add('open');
+      if(cell.mine){d.textContent='💣';d.classList.add('boom');}
+      else if(cell.adj>0){d.textContent=cell.adj;d.style.color=['','#4d96ff','#4caf50','#e74c3c','#9b59b6','#e67e22','#16a085','#2c3e50','#7f8c8d'][cell.adj];}
+    }else if(cell.flag){d.textContent='🚩';d.style.color='#e74c3c';}
     d.onclick=()=>reveal(r,c);
-    d.oncontextmenu=(e)=>{e.preventDefault();if(!cell.open){cell.flag=!cell.flag;render();}};
+    d.oncontextmenu=e=>{e.preventDefault();flag(r,c);};
+    let t=null;
+    d.addEventListener('touchstart',e=>{t=setTimeout(()=>{flag(r,c);t=null;},500);},{passive:true});
+    d.addEventListener('touchend',e=>{if(t){clearTimeout(t);t=null;reveal(r,c);}},{passive:true});
     b.appendChild(d);
   }
 }
 function reveal(r,c){
-  if(over||board[r][c].open||board[r][c].flag)return;
-  const cell=board[r][c];
-  if(cell.mine){cell.open=true;over=true;render();gameOver(false);return;}
-  cell.open=true;
-  if(cell.adj===0){for(let dr=-1;dr<=1;dr++)for(let dc=-1;dc<=1;dc++){const nr=r+dr,nc=c+dc;if(nr>=0&&nr<ROWS&&nc>=0&&nc<COLS&&!board[nr][nc].open&&!board[nr][nc].mine)reveal(nr,nc);}}
+  if(over||grid[r][c].open||grid[r][c].flag)return;
+  const cell=grid[r][c];
+  if(cell.mine){
+    cell.open=true;over=true;sBoom();
+    document.getElementById('finalScore').textContent='踩雷了!';
+    document.getElementById('over').style.display='flex';
+    render();
+    parent.postMessage({type:'game-score',game:'minesweeper',score:0},'*');
+    return;
+  }
+  const stack=[[r,c]];
+  while(stack.length){
+    const [cr,cc]=stack.pop();
+    const cur=grid[cr][cc];
+    if(cur.open||cur.flag)continue;
+    cur.open=true;opened++;sReveal();
+    if(cur.adj===0){
+      for(let dr=-1;dr<=1;dr++)for(let dc=-1;dc<=1;dc++){
+        const nr=cr+dr,nc=cc+dc;
+        if(nr>=0&&nr<ROWS&&nc>=0&&nc<COLS&&!grid[nr][nc].open&&!grid[nr][nc].mine)stack.push([nr,nc]);
+      }
+    }
+  }
+  document.getElementById('openBox').textContent=opened;
+  if(opened===ROWS*COLS-MINES){
+    over=true;sWin();
+    const score=Math.max(0,1000-opened*5);
+    document.getElementById('finalScore').textContent='胜利! 得分 '+score;
+    document.getElementById('over').style.display='flex';
+    parent.postMessage({type:'game-score',game:'minesweeper',score:score},'*');
+  }
   render();
-  checkWin();
 }
-function checkWin(){
-  let opened=0;
-  for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++)if(board[r][c].open)opened++;
-  if(opened===ROWS*COLS-MINES){over=true;win=true;gameOver(true);}
-}
-function gameOver(w){
-  const secs=Math.round((Date.now()-startTime)/1000);
-  document.getElementById('finalScore').textContent=w?('通关! '+secs+'秒'):'踩雷了';
-  document.getElementById('over').style.display='flex';
-  if(w)parent.postMessage({type:'game-score',game:'minesweeper',score:secs},'*');
+function flag(r,c){
+  if(over||grid[r][c].open)return;
+  grid[r][c].flag=!grid[r][c].flag;
+  flags+=grid[r][c].flag?1:-1;
+  document.getElementById('mineBox').textContent=MINES-flags;
+  sFlag();
+  render();
 }
 restart();
 </script>
