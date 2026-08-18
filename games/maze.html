@@ -2,29 +2,60 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <title>迷宫</title>
 <style>
-body{margin:0;background:#1a1a2e;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;color:#fff;overflow:hidden}
-h2{margin:0 0 10px;color:#ffd700}
-#info{font-size:13px;color:#aaa;margin-bottom:8px}
-#status{font-size:16px;color:#ffd700;margin-bottom:10px}
-canvas{background:#222;border:2px solid #444;border-radius:8px}
-#over{display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);align-items:center;justify-content:center;flex-direction:column;z-index:10}
-#over .score{font-size:40px;color:#ffd700;font-weight:bold}
-#over button{margin-top:16px;padding:12px 30px;font-size:16px;border:none;border-radius:8px;background:#ffd700;color:#1a1a2e;cursor:pointer;font-weight:bold}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;min-height:100vh;background:linear-gradient(135deg,#0f0c29 0%,#302b63 50%,#24243e 100%);display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:'Segoe UI',system-ui,sans-serif;color:#fff;overflow:hidden;padding:12px}
+h2{margin:0 0 6px;font-size:22px;background:linear-gradient(90deg,#ffd700,#ff8c42);-webkit-background-clip:text;background-clip:text;color:transparent;letter-spacing:2px}
+#info{font-size:12px;color:rgba(255,255,255,.55);margin-bottom:10px;text-align:center}
+#status{font-size:15px;color:#ffd700;margin-bottom:10px;background:rgba(255,255,255,.06);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:8px 22px;box-shadow:0 8px 24px rgba(0,0,0,.35)}
+#c{background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.15);border-radius:12px;display:block;box-shadow:0 12px 40px rgba(0,0,0,.45)}
+#dpad{display:grid;grid-template-columns:repeat(3,56px);grid-template-rows:repeat(3,56px);gap:6px;margin-top:12px}
+#dpad button{border:none;border-radius:12px;background:rgba(255,255,255,.1);color:#ffd700;font-size:20px;cursor:pointer;transition:background .15s,transform .1s}
+#dpad button:active{background:rgba(255,215,0,.3);transform:scale(.92)}
+#dpad .blank{visibility:hidden}
+#over{display:none;position:fixed;inset:0;background:rgba(10,8,30,.75);backdrop-filter:blur(6px);align-items:center;justify-content:center;flex-direction:column;z-index:20;animation:fadeIn .3s}
+#over .score{font-size:44px;color:#ffd700;font-weight:800;text-shadow:0 0 20px rgba(255,215,0,.5)}
+#over .sub{color:rgba(255,255,255,.6);margin-top:6px;font-size:14px}
+button{margin-top:18px;padding:12px 34px;font-size:15px;border:none;border-radius:12px;background:linear-gradient(135deg,#ffd700,#ff8c42);color:#1a1a2e;cursor:pointer;font-weight:700;box-shadow:0 6px 20px rgba(255,140,66,.35);transition:transform .15s,box-shadow .15s}
+button:hover{transform:translateY(-2px) scale(1.03);box-shadow:0 10px 26px rgba(255,140,66,.5)}
+button:active{transform:scale(.96)}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@media(max-width:640px){#c{width:min(94vw,400px);height:auto}}
 </style>
 </head>
 <body>
-<h2>🌀 迷宫</h2>
-<div id="info">方向键/WASD 移动 · 走到绿色出口通关</div>
+<h2>迷宫</h2>
+<div id="info">方向键/WASD 或虚拟方向键移动 · 走到绿色出口通关</div>
 <div id="status">第 1 关</div>
 <canvas id="c" width="400" height="400"></canvas>
-<div id="over"><div class="score" id="finalScore">0</div><button onclick="restart()">再来一局</button></div>
+<div id="dpad">
+  <div class="blank"></div><button onclick="move(0,-1)">▲</button><div class="blank"></div>
+  <button onclick="move(-1,0)">◀</button><div class="blank"></div><button onclick="move(1,0)">▶</button>
+  <div class="blank"></div><button onclick="move(0,1)">▼</button><div class="blank"></div>
+</div>
+<div id="over"><div class="score" id="finalScore">0</div><div class="sub">通关结果</div><button onclick="restart()">再来一局</button></div>
 <script>
 const cv=document.getElementById('c'),ctx=cv.getContext('2d');
 const SIZE=20,N=20;
 let maze,player,level,over;
+let actx=null;
+function sfx(freq,dur,type,vol,slide){
+  try{
+    actx=actx||new (window.AudioContext||window.webkitAudioContext)();
+    const o=actx.createOscillator(),g=actx.createGain();
+    o.type=type||'square';o.frequency.value=freq;
+    if(slide)o.frequency.exponentialRampToValueAtTime(Math.max(30,freq+slide),actx.currentTime+dur);
+    g.gain.setValueAtTime(vol||.12,actx.currentTime);
+    g.gain.exponentialRampToValueAtTime(.001,actx.currentTime+dur);
+    o.connect(g);g.connect(actx.destination);
+    o.start();o.stop(actx.currentTime+dur);
+  }catch(e){}
+}
+const sMove=()=>sfx(240,.04,'square',.05);
+const sLevel=()=>{sfx(523,.1,'triangle',.1);setTimeout(()=>sfx(784,.12,'triangle',.1),100);};
+const sWin=()=>{sfx(523,.12,'triangle',.12);setTimeout(()=>sfx(659,.12,'triangle',.12),120);setTimeout(()=>sfx(784,.2,'triangle',.12),240);};
 function generateMaze(){
   const m=Array.from({length:N},()=>Array(N).fill(1));
   const stack=[[1,1]];m[1][1]=0;
@@ -59,30 +90,33 @@ function draw(){
   for(let r=0;r<N;r++)for(let c=0;c<N;c++){
     if(maze[r][c]){ctx.fillStyle='#4a4a6a';ctx.fillRect(c*SIZE,r*SIZE,SIZE,SIZE);}
   }
-  // exit
   ctx.fillStyle='#4caf50';ctx.fillRect((N-2)*SIZE,(N-2)*SIZE,SIZE,SIZE);
-  // player
+  ctx.shadowColor='#ffd700';ctx.shadowBlur=12;
   ctx.fillStyle='#ffd700';ctx.beginPath();ctx.arc(player.x*SIZE+SIZE/2,player.y*SIZE+SIZE/2,8,0,Math.PI*2);ctx.fill();
+  ctx.shadowBlur=0;
 }
-document.addEventListener('keydown',e=>{
+function move(dx,dy){
   if(over)return;
-  const k=e.key.toLowerCase();
-  let dx=0,dy=0;
-  if(k==='arrowup'||k==='w')dy=-1;
-  else if(k==='arrowdown'||k==='s')dy=1;
-  else if(k==='arrowleft'||k==='a')dx=-1;
-  else if(k==='arrowright'||k==='d')dx=1;
   const nx=player.x+dx,ny=player.y+dy;
   if(nx>=0&&nx<N&&ny>=0&&ny<N&&maze[ny][nx]===0){
-    player.x=nx;player.y=ny;
+    player.x=nx;player.y=ny;sMove();
     if(nx===N-2&&ny===N-2){
       level++;
-      if(level>5){gameOver();return;}
+      if(level>5){sWin();gameOver();return;}
+      sLevel();
       loadLevel();
       return;
     }
     draw();
   }
+}
+document.addEventListener('keydown',e=>{
+  if(over)return;
+  const k=e.key.toLowerCase();
+  if(k==='arrowup'||k==='w')move(0,-1);
+  else if(k==='arrowdown'||k==='s')move(0,1);
+  else if(k==='arrowleft'||k==='a')move(-1,0);
+  else if(k==='arrowright'||k==='d')move(1,0);
 });
 function gameOver(){
   over=true;
