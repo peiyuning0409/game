@@ -2,42 +2,72 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <title>敲木鱼</title>
 <style>
-body{margin:0;background:#1a1a2e;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;color:#fff;overflow:hidden}
-h2{margin:0 0 10px;color:#ffd700}
-#info{font-size:13px;color:#aaa;margin-bottom:8px}
-#gongde{font-size:34px;color:#ffd700;font-weight:bold;margin:10px 0}
-#fish{font-size:120px;cursor:pointer;user-select:none;transition:transform .08s;filter:drop-shadow(0 0 20px rgba(255,215,0,.3))}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;min-height:100vh;background:linear-gradient(135deg,#0f0c29 0%,#302b63 50%,#24243e 100%);display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:'Segoe UI',system-ui,sans-serif;color:#fff;overflow:hidden;padding:12px}
+h2{margin:0 0 6px;font-size:22px;background:linear-gradient(90deg,#ffd700,#ff8c42);-webkit-background-clip:text;background-clip:text;color:transparent;letter-spacing:2px}
+#info{font-size:12px;color:rgba(255,255,255,.55);margin-bottom:10px;text-align:center}
+#scoreBox{font-size:26px;color:#ffd700;margin:10px 0;font-weight:800;text-shadow:0 0 16px rgba(255,215,0,.4)}
+#fish{width:min(60vw,240px);aspect-ratio:1;border-radius:50%;background:radial-gradient(circle at 50% 40%,#8a5a2b,#5a3a1b);display:flex;align-items:center;justify-content:center;font-size:min(24vw,100px);cursor:pointer;user-select:none;box-shadow:0 12px 40px rgba(0,0,0,.5),inset 0 -8px 20px rgba(0,0,0,.3);transition:transform .1s;touch-action:manipulation}
 #fish:active{transform:scale(.9)}
-#btn{margin-top:20px;padding:10px 24px;font-size:14px;border:none;border-radius:8px;background:#ffd700;color:#1a1a2e;cursor:pointer;font-weight:bold}
-#float{position:fixed;font-size:22px;color:#ffd700;pointer-events:none;animation:up 1s forwards}
-@keyframes up{from{opacity:1;transform:translateY(0)}to{opacity:0;transform:translateY(-80px)}}
+#fish.hit{animation:fishHit .15s}
+@keyframes fishHit{0%{transform:scale(1) rotate(0)}50%{transform:scale(.85) rotate(-6deg)}100%{transform:scale(1) rotate(0)}}
+#float{position:fixed;top:20%;left:50%;transform:translateX(-50%);font-size:22px;color:#ffd700;font-weight:700;pointer-events:none;opacity:0;text-shadow:0 0 12px rgba(255,215,0,.5)}
+#float.show{animation:floatUp 1s ease-out}
+@keyframes floatUp{0%{opacity:1;transform:translate(-50%,0)}100%{opacity:0;transform:translate(-50%,-80px)}}
+#over{display:none;position:fixed;inset:0;background:rgba(10,8,30,.75);backdrop-filter:blur(6px);align-items:center;justify-content:center;flex-direction:column;z-index:20;animation:fadeIn .3s}
+#over .score{font-size:44px;color:#ffd700;font-weight:800;text-shadow:0 0 20px rgba(255,215,0,.5)}
+#over .sub{color:rgba(255,255,255,.6);margin-top:6px;font-size:14px}
+button{margin-top:18px;padding:12px 34px;font-size:15px;border:none;border-radius:12px;background:linear-gradient(135deg,#ffd700,#ff8c42);color:#1a1a2e;cursor:pointer;font-weight:700;box-shadow:0 6px 20px rgba(255,140,66,.35);transition:transform .15s,box-shadow .15s}
+button:hover{transform:translateY(-2px) scale(1.03);box-shadow:0 10px 26px rgba(255,140,66,.5)}
+button:active{transform:scale(.96)}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
 </style>
 </head>
 <body>
-<h2>🪵 敲木鱼</h2>
-<div id="info">点击木鱼积攒功德 · 解压神器</div>
-<div id="gongde">功德: 0</div>
-<div id="fish" onclick="knock(event)">🪵</div>
-<button id="btn" onclick="save()">保存功德</button>
+<h2>敲木鱼</h2>
+<div id="info">点击木鱼积功德 · 功德无量</div>
+<div id="scoreBox">功德: 0</div>
+<div id="fish">🪵</div>
+<div id="float"></div>
+<div id="over"><div class="score" id="finalScore">0</div><div class="sub">本局功德</div><button onclick="restart()">再来一局</button></div>
 <script>
-let gongde=0;
-function knock(e){
-  gongde++;
-  document.getElementById('gongde').textContent='功德: '+gongde;
-  const f=document.createElement('div');
-  f.id='float';f.textContent='+1 功德';
-  f.style.left=(e.clientX-30)+'px';f.style.top=(e.clientY-40)+'px';
-  document.body.appendChild(f);
-  setTimeout(()=>f.remove(),1000);
+let score=0;
+let actx=null;
+function sfx(freq,dur,type,vol,slide){
+  try{
+    actx=actx||new (window.AudioContext||window.webkitAudioContext)();
+    const o=actx.createOscillator(),g=actx.createGain();
+    o.type=type||'square';o.frequency.value=freq;
+    if(slide)o.frequency.exponentialRampToValueAtTime(Math.max(30,freq+slide),actx.currentTime+dur);
+    g.gain.setValueAtTime(vol||.12,actx.currentTime);
+    g.gain.exponentialRampToValueAtTime(.001,actx.currentTime+dur);
+    o.connect(g);g.connect(actx.destination);
+    o.start();o.stop(actx.currentTime+dur);
+  }catch(e){}
 }
-function save(){
-  parent.postMessage({type:'game-score',game:'woodfish',score:gongde},'*');
-  document.getElementById('btn').textContent='已保存 ✓';
-  setTimeout(()=>document.getElementById('btn').textContent='保存功德',1500);
+const sKnock=()=>{sfx(180,.12,'sine',.2,-40);setTimeout(()=>sfx(120,.15,'sine',.15,-30),60);};
+const fish=document.getElementById('fish');
+function knock(){
+  score++;
+  document.getElementById('scoreBox').textContent='功德: '+score;
+  fish.classList.remove('hit');
+  void fish.offsetWidth;
+  fish.classList.add('hit');
+  sKnock();
+  const f=document.getElementById('float');
+  f.textContent='功德 +1';
+  f.classList.remove('show');
+  void f.offsetWidth;
+  f.classList.add('show');
+  if(score%10===0){
+    parent.postMessage({type:'game-score',game:'woodfish',score:score},'*');
+  }
 }
+fish.onclick=knock;
+fish.addEventListener('touchstart',e=>{e.preventDefault();knock();},{passive:false});
 </script>
 </body>
 </html>
