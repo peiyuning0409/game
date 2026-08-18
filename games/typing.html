@@ -2,59 +2,93 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>打字达人</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>打字练习</title>
 <style>
-body{margin:0;background:#1a1a2e;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;color:#fff;overflow:hidden}
-h2{margin:0 0 10px;color:#ffd700}
-#info{font-size:13px;color:#aaa;margin-bottom:8px}
-#word{font-size:44px;color:#ffd700;font-weight:bold;margin:16px 0;letter-spacing:4px;min-height:60px}
-#input{width:280px;padding:12px;font-size:20px;text-align:center;border-radius:8px;border:1px solid #555;background:#333;color:#fff;outline:none}
-#scoreBox{font-size:18px;color:#ffd700;margin-top:14px}
-#over{display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);align-items:center;justify-content:center;flex-direction:column;z-index:10}
-#over .score{font-size:40px;color:#ffd700;font-weight:bold}
-#over button{margin-top:16px;padding:12px 30px;font-size:16px;border:none;border-radius:8px;background:#ffd700;color:#1a1a2e;cursor:pointer;font-weight:bold}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;min-height:100vh;background:linear-gradient(135deg,#0f0c29 0%,#302b63 50%,#24243e 100%);display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:'Segoe UI',system-ui,sans-serif;color:#fff;overflow:hidden;padding:12px}
+h2{margin:0 0 6px;font-size:22px;background:linear-gradient(90deg,#ffd700,#ff8c42);-webkit-background-clip:text;background-clip:text;color:transparent;letter-spacing:2px}
+#info{font-size:12px;color:rgba(255,255,255,.55);margin-bottom:10px;text-align:center}
+#hud{display:flex;gap:24px;margin-bottom:10px;background:rgba(255,255,255,.06);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:8px 22px;box-shadow:0 8px 24px rgba(0,0,0,.35)}
+#hud .lbl{color:rgba(255,255,255,.55);font-size:11px;letter-spacing:1px}
+#hud .val{font-size:20px;color:#ffd700;font-weight:700;text-shadow:0 0 12px rgba(255,215,0,.4)}
+#word{font-size:min(12vw,44px);font-weight:800;color:#fff;margin:16px 0;min-height:56px;letter-spacing:4px;text-shadow:0 0 20px rgba(255,255,255,.2)}
+#word .done{color:#4caf50}
+#input{width:min(80vw,300px);padding:12px;font-size:18px;text-align:center;border-radius:12px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.08);color:#fff;outline:none;transition:border .2s}
+#input:focus{border-color:#ffd700}
+#over{display:none;position:fixed;inset:0;background:rgba(10,8,30,.75);backdrop-filter:blur(6px);align-items:center;justify-content:center;flex-direction:column;z-index:20;animation:fadeIn .3s}
+#over .score{font-size:44px;color:#ffd700;font-weight:800;text-shadow:0 0 20px rgba(255,215,0,.5)}
+#over .sub{color:rgba(255,255,255,.6);margin-top:6px;font-size:14px}
+button{margin-top:18px;padding:12px 34px;font-size:15px;border:none;border-radius:12px;background:linear-gradient(135deg,#ffd700,#ff8c42);color:#1a1a2e;cursor:pointer;font-weight:700;box-shadow:0 6px 20px rgba(255,140,66,.35);transition:transform .15s,box-shadow .15s}
+button:hover{transform:translateY(-2px) scale(1.03);box-shadow:0 10px 26px rgba(255,140,66,.5)}
+button:active{transform:scale(.96)}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
 </style>
 </head>
 <body>
-<h2>⌨️ 打字达人</h2>
-<div id="info">输入显示的英文单词 · 60秒挑战</div>
-<div id="word">start</div>
-<input id="input" autocomplete="off" oninput="check()">
-<div id="scoreBox">分数: 0 · 时间: 60s</div>
-<div id="over"><div class="score" id="finalScore">0</div><button onclick="restart()">再来一局</button></div>
+<h2>打字练习</h2>
+<div id="info">60 秒内尽可能多地正确输入单词</div>
+<div id="hud">
+  <div><div class="lbl">时间</div><div class="val" id="timeBox">60</div></div>
+  <div><div class="lbl">得分</div><div class="val" id="scoreBox">0</div></div>
+</div>
+<div id="word"></div>
+<input id="input" autocomplete="off" autocapitalize="off" spellcheck="false" oninput="check()">
+<div id="over"><div class="score" id="finalScore">0</div><div class="sub">本局得分</div><button onclick="restart()">再来一局</button></div>
 <script>
-const WORDS=['apple','banana','cherry','dragon','elephant','forest','garden','harbor','island','jungle','kitten','lemon','mountain','night','orange','piano','queen','river','sunset','tiger','umbrella','village','window','yellow','zebra','computer','keyboard','monitor','python','gaming','music','coffee','school','friend','happy','smile','light','water','cloud','stone'];
-let word,score,time,over,timer;
+const WORDS=['apple','banana','cherry','dragon','elephant','forest','garden','harbor','island','jungle','kitten','lemon','mountain','night','ocean','piano','queen','river','sunset','tiger','umbrella','village','window','yellow','zebra','coffee','diamond','energy','flower','guitar','happy','icecream','jacket','kangaroo','library','monkey','notebook','orange','penguin','quilt','rocket','school','turtle','umbrella','violin','water','xylophone','yogurt','zoo'];
+let current,score,timeLeft,timer,over;
+let actx=null;
+function sfx(freq,dur,type,vol,slide){
+  try{
+    actx=actx||new (window.AudioContext||window.webkitAudioContext)();
+    const o=actx.createOscillator(),g=actx.createGain();
+    o.type=type||'square';o.frequency.value=freq;
+    if(slide)o.frequency.exponentialRampToValueAtTime(Math.max(30,freq+slide),actx.currentTime+dur);
+    g.gain.setValueAtTime(vol||.12,actx.currentTime);
+    g.gain.exponentialRampToValueAtTime(.001,actx.currentTime+dur);
+    o.connect(g);g.connect(actx.destination);
+    o.start();o.stop(actx.currentTime+dur);
+  }catch(e){}
+}
+const sCorrect=()=>{sfx(523,.08,'triangle',.1);setTimeout(()=>sfx(784,.1,'triangle',.08),50);};
+const sTick=()=>sfx(300,.03,'square',.05);
+const sOver=()=>{sfx(400,.2,'sawtooth',.12,-200);setTimeout(()=>sfx(200,.3,'sawtooth',.12,-120),150);};
 function restart(){
-  score=0;time=60;over=false;
+  score=0;timeLeft=60;over=false;
   document.getElementById('over').style.display='none';
-  document.getElementById('input').value='';
-  document.getElementById('input').focus();
-  nextWord();
-  document.getElementById('scoreBox').textContent='分数: 0 · 时间: 60s';
+  document.getElementById('scoreBox').textContent=0;
+  document.getElementById('timeBox').textContent=60;
   clearInterval(timer);
+  nextWord();
   timer=setInterval(()=>{
-    time--;
-    document.getElementById('scoreBox').textContent='分数: '+score+' · 时间: '+time+'s';
-    if(time<=0)gameOver();
+    timeLeft--;
+    document.getElementById('timeBox').textContent=timeLeft;
+    if(timeLeft<=5)sTick();
+    if(timeLeft<=0){clearInterval(timer);gameOver();}
   },1000);
+  document.getElementById('input').focus();
 }
 function nextWord(){
-  word=WORDS[Math.floor(Math.random()*WORDS.length)];
-  document.getElementById('word').textContent=word;
+  current=WORDS[Math.floor(Math.random()*WORDS.length)];
+  document.getElementById('word').innerHTML='<span class="done"></span>'+current;
+  document.getElementById('input').value='';
 }
 function check(){
-  const v=document.getElementById('input').value.trim().toLowerCase();
-  if(v===word){
-    score+=word.length*2;
-    document.getElementById('input').value='';
-    nextWord();
-    document.getElementById('scoreBox').textContent='分数: '+score+' · 时间: '+time+'s';
+  const v=document.getElementById('input').value;
+  const w=document.getElementById('word');
+  if(current.startsWith(v)){
+    w.innerHTML='<span class="done">'+v+'</span>'+current.slice(v.length);
+    if(v===current){
+      score+=current.length*10;
+      document.getElementById('scoreBox').textContent=score;
+      sCorrect();
+      nextWord();
+    }
   }
 }
 function gameOver(){
-  over=true;clearInterval(timer);
+  over=true;sOver();
   document.getElementById('finalScore').textContent=score;
   document.getElementById('over').style.display='flex';
   parent.postMessage({type:'game-score',game:'typing',score:score},'*');
