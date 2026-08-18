@@ -2,35 +2,59 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <title>俄罗斯方块</title>
 <style>
-body{margin:0;background:#1a1a2e;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;color:#fff;overflow:hidden}
-h2{margin:0 0 10px;color:#ffd700}
-#info{font-size:13px;color:#aaa;margin-bottom:8px}
-#wrap{display:flex;gap:20px;align-items:flex-start}
-canvas{background:#222;border:2px solid #444;border-radius:8px}
-#side{text-align:center}
-#side .lbl{color:#aaa;font-size:13px;margin-top:10px}
-#side .val{font-size:26px;color:#ffd700;font-weight:bold}
-#over{display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);align-items:center;justify-content:center;flex-direction:column;z-index:10}
-#over .score{font-size:40px;color:#ffd700;font-weight:bold}
-#over button{margin-top:16px;padding:12px 30px;font-size:16px;border:none;border-radius:8px;background:#ffd700;color:#1a1a2e;cursor:pointer;font-weight:bold}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;min-height:100vh;background:linear-gradient(135deg,#0f0c29 0%,#302b63 50%,#24243e 100%);display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:'Segoe UI',system-ui,-apple-system,sans-serif;color:#fff;overflow:hidden;padding:12px}
+h2{margin:0 0 6px;font-size:22px;background:linear-gradient(90deg,#ffd700,#ff8c42);-webkit-background-clip:text;background-clip:text;color:transparent;letter-spacing:2px}
+#info{font-size:12px;color:rgba(255,255,255,.55);margin-bottom:10px;text-align:center}
+#wrap{display:flex;gap:14px;align-items:flex-start;background:rgba(255,255,255,.06);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.12);border-radius:16px;padding:14px;box-shadow:0 12px 40px rgba(0,0,0,.45)}
+canvas{background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.15);border-radius:10px;display:block}
+#side{text-align:center;min-width:88px}
+#side .lbl{color:rgba(255,255,255,.55);font-size:11px;margin-top:8px;letter-spacing:1px}
+#side .val{font-size:24px;color:#ffd700;font-weight:700;text-shadow:0 0 12px rgba(255,215,0,.4)}
+#next{border-radius:8px}
+#over{display:none;position:fixed;inset:0;background:rgba(10,8,30,.75);backdrop-filter:blur(6px);align-items:center;justify-content:center;flex-direction:column;z-index:20;animation:fadeIn .3s}
+#over .score{font-size:44px;color:#ffd700;font-weight:800;text-shadow:0 0 20px rgba(255,215,0,.5)}
+#over .sub{color:rgba(255,255,255,.6);margin-top:6px;font-size:14px}
+button{margin-top:18px;padding:12px 34px;font-size:15px;border:none;border-radius:12px;background:linear-gradient(135deg,#ffd700,#ff8c42);color:#1a1a2e;cursor:pointer;font-weight:700;box-shadow:0 6px 20px rgba(255,140,66,.35);transition:transform .15s,box-shadow .15s}
+button:hover{transform:translateY(-2px) scale(1.03);box-shadow:0 10px 26px rgba(255,140,66,.5)}
+button:active{transform:scale(.96)}
+#touch{display:none;margin-top:12px;gap:8px;justify-content:center;flex-wrap:wrap}
+#touch button{width:56px;height:56px;padding:0;font-size:22px;border-radius:14px;background:rgba(255,255,255,.12);color:#fff;border:1px solid rgba(255,255,255,.2);box-shadow:none;margin:0}
+#touch button:active{background:rgba(255,215,0,.35)}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@media(max-width:640px){
+  body{justify-content:flex-start;padding-top:14px;overflow:auto}
+  #wrap{flex-direction:column;align-items:center;padding:10px;gap:8px}
+  #side{display:flex;gap:18px;align-items:center;min-width:0}
+  #side .lbl{margin-top:0}
+  #touch{display:flex}
+  #c{max-width:min(92vw,300px);height:auto}
+}
 </style>
 </head>
 <body>
-<h2>🧱 俄罗斯方块</h2>
-<div id="info">← → 移动 · ↑ 旋转 · ↓ 加速 · 空格 直落</div>
+<h2>俄罗斯方块</h2>
+<div id="info">← → 移动 · ↑ 旋转 · ↓ 软降 · 空格 硬降</div>
 <div id="wrap">
   <canvas id="c" width="300" height="600"></canvas>
   <div id="side">
     <div class="lbl">分数</div><div class="val" id="score">0</div>
     <div class="lbl">等级</div><div class="val" id="level">1</div>
     <div class="lbl">下一个</div>
-    <canvas id="next" width="120" height="120"></canvas>
+    <canvas id="next" width="100" height="100"></canvas>
   </div>
 </div>
-<div id="over"><div class="score" id="finalScore">0</div><button onclick="restart()">再来一局</button></div>
+<div id="touch">
+  <button data-a="left">◀</button>
+  <button data-a="rotate">↻</button>
+  <button data-a="right">▶</button>
+  <button data-a="soft">▼</button>
+  <button data-a="hard">⤓</button>
+</div>
+<div id="over"><div class="score" id="finalScore">0</div><div class="sub">本局得分</div><button onclick="restart()">再来一局</button></div>
 <script>
 const cv=document.getElementById('c'),ctx=cv.getContext('2d');
 const nv=document.getElementById('next'),nctx=nv.getContext('2d');
@@ -46,23 +70,64 @@ const SHAPES=[
   [[0,1,1],[1,1,0]]
 ];
 const COLORS=['#ff6b6b','#ffd93d','#6bcb77','#4d96ff','#9b59b6','#ff8c42','#00d2ff'];
+let actx=null;
+function sfx(freq,dur,type,vol,slide){
+  try{
+    actx=actx||new (window.AudioContext||window.webkitAudioContext)();
+    const o=actx.createOscillator(),g=actx.createGain();
+    o.type=type||'square';o.frequency.value=freq;
+    if(slide)o.frequency.exponentialRampToValueAtTime(Math.max(30,freq+slide),actx.currentTime+dur);
+    g.gain.setValueAtTime(vol||.12,actx.currentTime);
+    g.gain.exponentialRampToValueAtTime(.001,actx.currentTime+dur);
+    o.connect(g);g.connect(actx.destination);
+    o.start();o.stop(actx.currentTime+dur);
+  }catch(e){}
+}
+const sMove=()=>sfx(220,.05,'square',.05);
+const sRot=()=>sfx(330,.06,'triangle',.08);
+const sDrop=()=>sfx(180,.08,'sawtooth',.09,-60);
+const sLock=()=>sfx(120,.1,'square',.09,-40);
+const sClear=()=>sfx(660,.18,'triangle',.12,260);
+const sOver=()=>{sfx(400,.2,'sawtooth',.12,-200);setTimeout(()=>sfx(200,.3,'sawtooth',.12,-120),150);};
 function newBoard(){return Array.from({length:ROWS},()=>Array(COLS).fill(0));}
 function newPiece(){const i=Math.floor(Math.random()*SHAPES.length);return{shape:SHAPES[i].map(r=>r.slice()),color:i,x:Math.floor((COLS-SHAPES[i][0].length)/2),y:0};}
 function collide(p,b){for(let r=0;r<p.shape.length;r++)for(let c=0;c<p.shape[r].length;c++){if(p.shape[r][c]){const nx=p.x+c,ny=p.y+r;if(nx<0||nx>=COLS||ny>=ROWS||(ny>=0&&b[ny][nx]))return true;}}return false;}
+function ghostY(){let y=cur.y;while(!collide({...cur,y:y+1},board))y++;return y;}
 function merge(){cur.shape.forEach((row,r)=>row.forEach((v,c)=>{if(v&&cur.y+r>=0)board[cur.y+r][cur.x+c]=cur.color+1;}));}
+function updateHud(){document.getElementById('score').textContent=score;document.getElementById('level').textContent=level;}
 function clearLines(){let lines=0;for(let r=ROWS-1;r>=0;r--){if(board[r].every(v=>v)){board.splice(r,1);board.unshift(Array(COLS).fill(0));lines++;r++;}}
-  if(lines){score+=[0,100,300,500,800][lines]*level;level=1+Math.floor(score/1000);document.getElementById('score').textContent=score;document.getElementById('level').textContent=level;}}
-function spawn(){cur=next;next=newPiece();if(collide(cur,board)){gameOver();}drawNext();}
-function drawNext(){nctx.clearRect(0,0,120,120);const s=next.shape;const size=24;const ox=(120-s[0].length*size)/2,oy=(120-s.length*size)/2;nctx.fillStyle=COLORS[next.color];s.forEach((row,r)=>row.forEach((v,c)=>{if(v)nctx.fillRect(ox+c*size,oy+r*size,size-2,size-2);}));}
-function draw(){ctx.clearRect(0,0,300,600);board.forEach((row,r)=>row.forEach((v,c)=>{if(v){ctx.fillStyle=COLORS[v-1];ctx.fillRect(c*BLOCK,r*BLOCK,BLOCK-1,BLOCK-1);}}));
-  cur.shape.forEach((row,r)=>row.forEach((v,c)=>{if(v&&cur.y+r>=0){ctx.fillStyle=COLORS[cur.color];ctx.fillRect((cur.x+c)*BLOCK,(cur.y+r)*BLOCK,BLOCK-1,BLOCK-1);}}));}
-function step(){cur.y++;if(collide(cur,board)){cur.y--;merge();clearLines();spawn();}draw();}
-function move(dx){cur.x+=dx;if(collide(cur,board))cur.x-=dx;draw();}
-function rotate(){const s=cur.shape[0].map((_,i)=>cur.shape.map(row=>row[i]).reverse());const old=cur.shape;cur.shape=s;if(collide(cur,board))cur.shape=old;draw();}
-function hardDrop(){while(!collide({...cur,y:cur.y+1},board))cur.y++;merge();clearLines();spawn();draw();}
-function gameOver(){over=true;clearInterval(dropTimer);document.getElementById('finalScore').textContent=score;document.getElementById('over').style.display='flex';parent.postMessage({type:'game-score',game:'tetris',score:score},'*');}
-function restart(){board=newBoard();score=0;level=1;over=false;document.getElementById('score').textContent=0;document.getElementById('level').textContent=1;next=newPiece();spawn();document.getElementById('over').style.display='none';dropTimer=setInterval(step,Math.max(100,500-level*30));}
-document.addEventListener('keydown',e=>{if(over)return;if(e.key==='ArrowLeft')move(-1);else if(e.key==='ArrowRight')move(1);else if(e.key==='ArrowUp')rotate();else if(e.key==='ArrowDown')step();else if(e.key===' ')hardDrop();});
+  if(lines){score+=[0,100,300,500,800][lines]*level;level=1+Math.floor(score/1000);updateHud();}return lines;}
+function spawn(){cur=next;next=newPiece();if(collide(cur,board)){gameOver();return;}drawNext();}
+function drawNext(){nctx.clearRect(0,0,100,100);const s=next.shape;const size=20;const ox=(100-s[0].length*size)/2,oy=(100-s.length*size)/2;nctx.fillStyle=COLORS[next.color];s.forEach((row,r)=>row.forEach((v,c)=>{if(v)nctx.fillRect(ox+c*size,oy+r*size,size-2,size-2);}));}
+function draw(){
+  ctx.clearRect(0,0,300,600);
+  ctx.strokeStyle='rgba(255,255,255,.05)';
+  for(let i=1;i<COLS;i++){ctx.beginPath();ctx.moveTo(i*BLOCK,0);ctx.lineTo(i*BLOCK,600);ctx.stroke();}
+  for(let i=1;i<ROWS;i++){ctx.beginPath();ctx.moveTo(0,i*BLOCK);ctx.lineTo(300,i*BLOCK);ctx.stroke();}
+  board.forEach((row,r)=>row.forEach((v,c)=>{if(v){ctx.fillStyle=COLORS[v-1];ctx.fillRect(c*BLOCK,r*BLOCK,BLOCK-1,BLOCK-1);}}));
+  const gy=ghostY();
+  if(gy>cur.y){ctx.globalAlpha=.22;cur.shape.forEach((row,r)=>row.forEach((v,c)=>{if(v&&gy+r>=0){ctx.fillStyle=COLORS[cur.color];ctx.fillRect((cur.x+c)*BLOCK,(gy+r)*BLOCK,BLOCK-1,BLOCK-1);}}));ctx.globalAlpha=1;}
+  cur.shape.forEach((row,r)=>row.forEach((v,c)=>{if(v&&cur.y+r>=0){ctx.fillStyle=COLORS[cur.color];ctx.fillRect((cur.x+c)*BLOCK,(cur.y+r)*BLOCK,BLOCK-1,BLOCK-1);}}));
+}
+function lock(){merge();sLock();const n=clearLines();if(n)sClear();spawn();draw();}
+function step(){cur.y++;if(collide(cur,board)){cur.y--;lock();}else draw();}
+function move(dx){if(over)return;cur.x+=dx;if(collide(cur,board))cur.x-=dx;else sMove();draw();}
+const KICKS=[[0,0],[-1,0],[1,0],[0,-1],[-2,0],[2,0]];
+function rotate(){if(over)return;const s=cur.shape[0].map((_,i)=>cur.shape.map(row=>row[i]).reverse());const old=cur.shape,ox=cur.x,oy=cur.y;
+  for(const k of KICKS){cur.shape=s;cur.x=ox+k[0];cur.y=oy+k[1];if(!collide(cur,board)){sRot();draw();return;}}
+  cur.shape=old;cur.x=ox;cur.y=oy;draw();}
+function softDrop(){if(over)return;cur.y++;if(collide(cur,board)){cur.y--;lock();}else{score+=1;updateHud();sDrop();}draw();}
+function hardDrop(){if(over)return;const gy=ghostY();score+=(gy-cur.y)*2;cur.y=gy;updateHud();lock();}
+function gameOver(){over=true;clearInterval(dropTimer);sOver();document.getElementById('finalScore').textContent=score;document.getElementById('over').style.display='flex';parent.postMessage({type:'game-score',game:'tetris',score:score},'*');}
+function restart(){board=newBoard();score=0;level=1;over=false;updateHud();next=newPiece();spawn();document.getElementById('over').style.display='none';clearInterval(dropTimer);dropTimer=setInterval(step,Math.max(80,500-level*30));}
+document.addEventListener('keydown',e=>{if(over)return;if(e.key==='ArrowLeft')move(-1);else if(e.key==='ArrowRight')move(1);else if(e.key==='ArrowUp')rotate();else if(e.key==='ArrowDown')softDrop();else if(e.key===' ')hardDrop();});
+document.querySelectorAll('#touch button').forEach(b=>{b.addEventListener('pointerdown',e=>{e.preventDefault();const a=b.dataset.a;if(a==='left')move(-1);else if(a==='right')move(1);else if(a==='rotate')rotate();else if(a==='soft')softDrop();else if(a==='hard')hardDrop();});});
+let tsx=0,tsy=0;
+cv.addEventListener('touchstart',e=>{const t=e.touches[0];tsx=t.clientX;tsy=t.clientY;e.preventDefault();},{passive:false});
+cv.addEventListener('touchmove',e=>e.preventDefault(),{passive:false});
+cv.addEventListener('touchend',e=>{const t=e.changedTouches[0];const dx=t.clientX-tsx,dy=t.clientY-tsy;
+  if(Math.abs(dx)<20&&Math.abs(dy)<20){rotate();return;}
+  if(Math.abs(dx)>Math.abs(dy))move(dx>0?1:-1);else dy>0?softDrop():rotate();});
 restart();
 </script>
 </body>
