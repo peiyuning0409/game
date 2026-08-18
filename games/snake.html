@@ -2,34 +2,79 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <title>贪吃蛇</title>
 <style>
-body{margin:0;background:#1a1a2e;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;color:#fff;overflow:hidden}
-h2{margin:0 0 10px;color:#ffd700}
-#info{font-size:13px;color:#aaa;margin-bottom:8px}
-canvas{background:#222;border:2px solid #444;border-radius:8px}
-#over{display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);align-items:center;justify-content:center;flex-direction:column;z-index:10}
-#over .score{font-size:40px;color:#ffd700;font-weight:bold}
-#over button{margin-top:16px;padding:12px 30px;font-size:16px;border:none;border-radius:8px;background:#ffd700;color:#1a1a2e;cursor:pointer;font-weight:bold}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;min-height:100vh;background:linear-gradient(135deg,#0f0c29 0%,#302b63 50%,#24243e 100%);display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:'Segoe UI',system-ui,-apple-system,sans-serif;color:#fff;overflow:hidden;padding:12px}
+h2{margin:0 0 6px;font-size:22px;background:linear-gradient(90deg,#ffd700,#ff8c42);-webkit-background-clip:text;background-clip:text;color:transparent;letter-spacing:2px}
+#info{font-size:12px;color:rgba(255,255,255,.55);margin-bottom:10px;text-align:center}
+#hud{display:flex;gap:24px;margin-bottom:10px;background:rgba(255,255,255,.06);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:8px 22px;box-shadow:0 8px 24px rgba(0,0,0,.35)}
+#hud .lbl{color:rgba(255,255,255,.55);font-size:11px;letter-spacing:1px}
+#hud .val{font-size:20px;color:#ffd700;font-weight:700;text-shadow:0 0 12px rgba(255,215,0,.4)}
+#c{background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.15);border-radius:12px;display:block;box-shadow:0 12px 40px rgba(0,0,0,.45)}
+#over{display:none;position:fixed;inset:0;background:rgba(10,8,30,.75);backdrop-filter:blur(6px);align-items:center;justify-content:center;flex-direction:column;z-index:20;animation:fadeIn .3s}
+#over .score{font-size:44px;color:#ffd700;font-weight:800;text-shadow:0 0 20px rgba(255,215,0,.5)}
+#over .sub{color:rgba(255,255,255,.6);margin-top:6px;font-size:14px}
+button{margin-top:18px;padding:12px 34px;font-size:15px;border:none;border-radius:12px;background:linear-gradient(135deg,#ffd700,#ff8c42);color:#1a1a2e;cursor:pointer;font-weight:700;box-shadow:0 6px 20px rgba(255,140,66,.35);transition:transform .15s,box-shadow .15s}
+button:hover{transform:translateY(-2px) scale(1.03);box-shadow:0 10px 26px rgba(255,140,66,.5)}
+button:active{transform:scale(.96)}
+#touch{display:none;margin-top:12px;gap:8px;justify-content:center;flex-wrap:wrap}
+#touch button{width:56px;height:56px;padding:0;font-size:22px;border-radius:14px;background:rgba(255,255,255,.12);color:#fff;border:1px solid rgba(255,255,255,.2);box-shadow:none;margin:0}
+#touch button:active{background:rgba(255,215,0,.35)}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@media(max-width:640px){
+  body{justify-content:flex-start;padding-top:14px;overflow:auto}
+  #touch{display:flex}
+  #c{max-width:min(92vw,400px);height:auto}
+}
 </style>
 </head>
 <body>
-<h2>🐍 贪吃蛇</h2>
-<div id="info">方向键 / WASD 控制 · 吃到食物变长</div>
+<h2>贪吃蛇</h2>
+<div id="info">方向键 / WASD 控制 · 吃到食物变长 · 速度随分数渐增</div>
+<div id="hud">
+  <div><div class="lbl">分数</div><div class="val" id="score">0</div></div>
+  <div><div class="lbl">长度</div><div class="val" id="len">3</div></div>
+  <div><div class="lbl">速度</div><div class="val" id="spd">1</div></div>
+</div>
 <canvas id="c" width="400" height="400"></canvas>
-<div id="over"><div class="score" id="finalScore">0</div><button onclick="restart()">再来一局</button></div>
+<div id="touch">
+  <button data-d="up">▲</button>
+  <button data-d="left">◀</button>
+  <button data-d="down">▼</button>
+  <button data-d="right">▶</button>
+</div>
+<div id="over"><div class="score" id="finalScore">0</div><div class="sub">本局得分</div><button onclick="restart()">再来一局</button></div>
 <script>
 const cv=document.getElementById('c'),ctx=cv.getContext('2d');
 const SIZE=20,N=20;
 let snake,dir,nextDir,food,score,over,timer;
+let actx=null;
+function sfx(freq,dur,type,vol,slide){
+  try{
+    actx=actx||new (window.AudioContext||window.webkitAudioContext)();
+    const o=actx.createOscillator(),g=actx.createGain();
+    o.type=type||'square';o.frequency.value=freq;
+    if(slide)o.frequency.exponentialRampToValueAtTime(Math.max(30,freq+slide),actx.currentTime+dur);
+    g.gain.setValueAtTime(vol||.12,actx.currentTime);
+    g.gain.exponentialRampToValueAtTime(.001,actx.currentTime+dur);
+    o.connect(g);g.connect(actx.destination);
+    o.start();o.stop(actx.currentTime+dur);
+  }catch(e){}
+}
+const sEat=()=>{sfx(520,.08,'triangle',.12);setTimeout(()=>sfx(780,.1,'triangle',.1),60);};
+const sOver=()=>{sfx(400,.2,'sawtooth',.12,-200);setTimeout(()=>sfx(200,.3,'sawtooth',.12,-120),150);};
+function speed(){return Math.max(70,200-Math.floor(score/10)*3);}
+function updateHud(){document.getElementById('score').textContent=score;document.getElementById('len').textContent=snake.length;document.getElementById('spd').textContent=Math.round(200/speed()*10)/10;}
 function restart(){
   snake=[{x:10,y:10},{x:9,y:10},{x:8,y:10}];
   dir={x:1,y:0};nextDir={x:1,y:0};score=0;over=false;
   placeFood();
   document.getElementById('over').style.display='none';
   clearInterval(timer);
-  timer=setInterval(step,120);
+  timer=setInterval(step,speed());
+  updateHud();draw();
 }
 function placeFood(){do{food={x:Math.floor(Math.random()*N),y:Math.floor(Math.random()*N)};}while(snake.some(s=>s.x===food.x&&s.y===food.y));}
 function step(){
@@ -37,24 +82,51 @@ function step(){
   const head={x:snake[0].x+dir.x,y:snake[0].y+dir.y};
   if(head.x<0||head.x>=N||head.y<0||head.y>=N||snake.some(s=>s.x===head.x&&s.y===head.y)){gameOver();return;}
   snake.unshift(head);
-  if(head.x===food.x&&head.y===food.y){score+=10;placeFood();}
+  if(head.x===food.x&&head.y===food.y){score+=10;sEat();placeFood();clearInterval(timer);timer=setInterval(step,speed());}
   else snake.pop();
-  draw();
+  updateHud();draw();
 }
 function draw(){
   ctx.clearRect(0,0,400,400);
-  ctx.fillStyle='#4caf50';ctx.fillRect(food.x*SIZE,food.y*SIZE,SIZE-1,SIZE-1);
-  snake.forEach((s,i)=>{ctx.fillStyle=i===0?'#ffd700':'#4d96ff';ctx.fillRect(s.x*SIZE,s.y*SIZE,SIZE-1,SIZE-1);});
-  ctx.fillStyle='#ffd700';ctx.font='bold 16px sans-serif';ctx.fillText('分数: '+score,10,20);
+  ctx.strokeStyle='rgba(255,255,255,.04)';
+  for(let i=1;i<N;i++){ctx.beginPath();ctx.moveTo(i*SIZE,0);ctx.lineTo(i*SIZE,400);ctx.stroke();ctx.beginPath();ctx.moveTo(0,i*SIZE);ctx.lineTo(400,i*SIZE);ctx.stroke();}
+  ctx.fillStyle='#ff4757';ctx.shadowColor='#ff4757';ctx.shadowBlur=12;
+  ctx.beginPath();ctx.arc(food.x*SIZE+SIZE/2,food.y*SIZE+SIZE/2,SIZE/2-2,0,Math.PI*2);ctx.fill();
+  ctx.shadowBlur=0;
+  snake.forEach((s,i)=>{
+    const g=i/snake.length;
+    ctx.fillStyle=i===0?'#ffd700':`hsl(${210-g*60},80%,${55+g*10}%)`;
+    ctx.fillRect(s.x*SIZE+1,s.y*SIZE+1,SIZE-2,SIZE-2);
+  });
+  if(snake.length>1){
+    const h=snake[0],n=snake[1];
+    ctx.fillStyle='#1a1a2e';
+    const ex=h.x*SIZE+SIZE/2+(n.x-h.x)*4,ey=h.y*SIZE+SIZE/2+(n.y-h.y)*4;
+    ctx.beginPath();ctx.arc(ex-3,ey-3,2.5,0,Math.PI*2);ctx.arc(ex+3,ey-3,2.5,0,Math.PI*2);ctx.fill();
+  }
 }
-function gameOver(){over=true;clearInterval(timer);document.getElementById('finalScore').textContent=score;document.getElementById('over').style.display='flex';parent.postMessage({type:'game-score',game:'snake',score:score},'*');}
+function gameOver(){over=true;clearInterval(timer);sOver();document.getElementById('finalScore').textContent=score;document.getElementById('over').style.display='flex';parent.postMessage({type:'game-score',game:'snake',score:score},'*');}
+function setDir(d){
+  if(over)return;
+  if(d==='up'&&dir.y!==1)nextDir={x:0,y:-1};
+  else if(d==='down'&&dir.y!==-1)nextDir={x:0,y:1};
+  else if(d==='left'&&dir.x!==1)nextDir={x:-1,y:0};
+  else if(d==='right'&&dir.x!==-1)nextDir={x:1,y:0};
+}
 document.addEventListener('keydown',e=>{
   const k=e.key.toLowerCase();
-  if(k==='arrowup'||k==='w'){if(dir.y!==1)nextDir={x:0,y:-1};}
-  else if(k==='arrowdown'||k==='s'){if(dir.y!==-1)nextDir={x:0,y:1};}
-  else if(k==='arrowleft'||k==='a'){if(dir.x!==1)nextDir={x:-1,y:0};}
-  else if(k==='arrowright'||k==='d'){if(dir.x!==-1)nextDir={x:1,y:0};}
+  if(k==='arrowup'||k==='w')setDir('up');
+  else if(k==='arrowdown'||k==='s')setDir('down');
+  else if(k==='arrowleft'||k==='a')setDir('left');
+  else if(k==='arrowright'||k==='d')setDir('right');
 });
+document.querySelectorAll('#touch button').forEach(b=>{b.addEventListener('pointerdown',e=>{e.preventDefault();setDir(b.dataset.d);});});
+let tsx=0,tsy=0;
+cv.addEventListener('touchstart',e=>{const t=e.touches[0];tsx=t.clientX;tsy=t.clientY;e.preventDefault();},{passive:false});
+cv.addEventListener('touchmove',e=>e.preventDefault(),{passive:false});
+cv.addEventListener('touchend',e=>{const t=e.changedTouches[0];const dx=t.clientX-tsx,dy=t.clientY-tsy;
+  if(Math.abs(dx)<20&&Math.abs(dy)<20)return;
+  if(Math.abs(dx)>Math.abs(dy))setDir(dx>0?'right':'left');else setDir(dy>0?'down':'up');});
 restart();
 </script>
 </body>
