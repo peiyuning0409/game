@@ -1,4 +1,4 @@
-/* ============================================================
+﻿/* ============================================================
  * game-hub 数据层（加密版）：AES-GCM 加密后存储于 GitHub
  * 数据文件：data/users.json、data/scores.json、data/stats.json
  * 所有数据在浏览器端加密后再上传，仓库内仅存密文
@@ -10,6 +10,15 @@ const GH = {
   branch: 'main',
   secret: '1HG6f1$' + 'fAECLFIZzUw3py*dTw9AJU2tH',
   salt: 'game-hub-salt-v1',
+
+  /* 全局串行写入队列：保证同一时刻只有一个 GitHub 写请求在执行，
+   * 彻底避免多局游戏并发写同一数据文件导致的 409 冲突。 */
+  _q: Promise.resolve(),
+  _enqueue(fn) {
+    const run = this._q.then(fn, fn);
+    this._q = run.catch(() => {});
+    return run;
+  },
 
   async _getKey() {
     const enc = new TextEncoder();
@@ -75,26 +84,30 @@ const GH = {
     return data.content.sha;
   },
 
-  /* 原子更新：读最新 -> 修改 -> 写回，冲突自动重试 */
-  async updateFile(path, updater, retries = 4) {
-    for (let i = 0; i < retries; i++) {
-      try {
-        const cur = await this.readFile(path);
-        let data;
-        if (cur) {
-          data = cur.content;
-        } else {
-          data = path.endsWith('users.json') ? { users: [] }
-              : path.endsWith('scores.json') ? { scores: [] }
-              : { stats: [] };
+  /* 原子更新：读最新 -> 修改 -> 写回，冲突自动重试；全程走串行队列防并发冲突 */
+  async updateFile(path, updater, retries = 5) {
+    return this._enqueue(async () => {
+      for (let i = 0; i < retries; i++) {
+        try {
+          const cur = await this.readFile(path);
+          let data;
+          if (cur) {
+            data = cur.content;
+          } else {
+            data = path.endsWith('users.json') ? { users: [] }
+                : path.endsWith('scores.json') ? { scores: [] }
+                : { stats: [] };
+          }
+          const newData = updater(data);
+          const sha = await this.writeFile(path, newData, cur ? cur.sha : undefined);
+          return newData;
+        } catch (e) {
+          if (i === retries - 1) throw e;
+          // 退避重试：409 冲突 / 429 限流 / 网络抖动均等待后重试
+          await new Promise(r => setTimeout(r, 800 * (i + 1)));
         }
-        const newData = updater(data);
-        const sha = await this.writeFile(path, newData, cur ? cur.sha : undefined);
-        return newData;
-      } catch (e) {
-        if (i === retries - 1) throw e;
-        await new Promise(r => setTimeout(r, 600 * (i + 1)));
       }
-    }
+    });
   }
 };
+
