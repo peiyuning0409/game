@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -276,29 +276,51 @@ function closeGame() {
   loadMyStats();
 }
 
+/* ============ 成绩保存（串行队列 + 失败静默暂存重放） ============ */
+/* 核心思路：
+ * 1) 所有写入经 GH.updateFile 串行队列执行，多局连续游玩不再并发冲突；
+ * 2) 写入失败不再弹「成绩保存失败」打扰用户，记录暂存本地，稍后自动重放；
+ * 3) 排行榜关键数据(scores)保证优先写入，辅助统计(stats/users)失败静默忽略。 */
+const pendingScores = [];
+let saving = false;
+
+async function flushScores() {
+  if (!currentUser || saving || pendingScores.length === 0) return;
+  saving = true;
+  const batch = pendingScores.splice(0, pendingScores.length);
+  try {
+    await GH.updateFile('data/scores.json', (d) => {
+      batch.forEach(s => d.scores.push(s));
+      return d;
+    });
+    try {
+      await GH.updateFile('data/stats.json', (d) => {
+        batch.forEach(s => d.stats.push({ username: currentUser.username, game: s.game, time: s.time }));
+        return d;
+      });
+      await GH.updateFile('data/users.json', (d) => {
+        const u = d.users.find(x => x.username === currentUser.username);
+        if (u) u.plays = (u.plays || 0) + batch.length;
+        return d;
+      });
+    } catch (e) { console.warn('辅助统计写入失败(已忽略)', e); }
+    toast('成绩已保存！', 'ok');
+  } catch (e) {
+    pendingScores.unshift(...batch);
+    console.warn('成绩暂存，稍后自动重试', e);
+  } finally {
+    saving = false;
+    if (pendingScores.length) setTimeout(flushScores, 3000);
+  }
+}
+
 /* 接收游戏分数 */
-window.addEventListener('message', async (e) => {
+window.addEventListener('message', (e) => {
   if (!e.data || e.data.type !== 'game-score') return;
   const { game, score } = e.data;
   if (!currentUser) return;
-  try {
-    await GH.updateFile('data/scores.json', (d) => {
-      d.scores.push({ username: currentUser.username, game, score, time: new Date().toLocaleString('zh-CN') });
-      return d;
-    });
-    await GH.updateFile('data/stats.json', (d) => {
-      d.stats.push({ username: currentUser.username, game, time: new Date().toLocaleString('zh-CN') });
-      return d;
-    });
-    await GH.updateFile('data/users.json', (d) => {
-      const u = d.users.find(x => x.username === currentUser.username);
-      if (u) u.plays = (u.plays || 0) + 1;
-      return d;
-    });
-    toast('成绩已保存！', 'ok');
-  } catch (err) {
-    toast('成绩保存失败，请重试', 'err');
-  }
+  pendingScores.push({ username: currentUser.username, game, score, time: new Date().toLocaleString('zh-CN') });
+  flushScores();
 });
 
 /* ============ 排行榜 ============ */
@@ -422,3 +444,4 @@ function toast(msg, type) {
 </script>
 </body>
 </html>
+
