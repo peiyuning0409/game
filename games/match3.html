@@ -2,31 +2,54 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <title>消消乐</title>
 <style>
-body{margin:0;background:#1a1a2e;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;color:#fff;overflow:hidden}
-h2{margin:0 0 10px;color:#ffd700}
-#info{font-size:13px;color:#aaa;margin-bottom:8px}
-#scoreBox{font-size:20px;color:#ffd700;margin-bottom:10px}
-#board{display:grid;grid-template-columns:repeat(8,48px);gap:3px;background:#3a3a5a;padding:6px;border-radius:10px}
-.candy{width:48px;height:48px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:28px;cursor:pointer;user-select:none;transition:.15s}
-.candy.sel{box-shadow:0 0 0 3px #ffd700}
-#over{display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);align-items:center;justify-content:center;flex-direction:column;z-index:10}
-#over .score{font-size:40px;color:#ffd700;font-weight:bold}
-#over button{margin-top:16px;padding:12px 30px;font-size:16px;border:none;border-radius:8px;background:#ffd700;color:#1a1a2e;cursor:pointer;font-weight:bold}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;min-height:100vh;background:linear-gradient(135deg,#0f0c29 0%,#302b63 50%,#24243e 100%);display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:'Segoe UI',system-ui,sans-serif;color:#fff;overflow:hidden;padding:12px}
+h2{margin:0 0 6px;font-size:22px;background:linear-gradient(90deg,#ffd700,#ff8c42);-webkit-background-clip:text;background-clip:text;color:transparent;letter-spacing:2px}
+#info{font-size:12px;color:rgba(255,255,255,.55);margin-bottom:10px;text-align:center}
+#scoreBox{font-size:20px;color:#ffd700;margin-bottom:10px;text-shadow:0 0 12px rgba(255,215,0,.3)}
+#board{display:grid;grid-template-columns:repeat(8,1fr);gap:3px;background:rgba(255,255,255,.08);padding:6px;border-radius:14px;width:min(92vw,420px);box-shadow:0 12px 40px rgba(0,0,0,.45)}
+.candy{aspect-ratio:1;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:min(6vw,28px);cursor:pointer;user-select:none;transition:transform .15s,box-shadow .15s;background:rgba(255,255,255,.06)}
+.candy.sel{box-shadow:0 0 0 3px #ffd700;transform:scale(1.08)}
+.candy.pop{animation:pop .2s}
+@keyframes pop{0%{transform:scale(.5);opacity:.4}100%{transform:scale(1);opacity:1}}
+#over{display:none;position:fixed;inset:0;background:rgba(10,8,30,.75);backdrop-filter:blur(6px);align-items:center;justify-content:center;flex-direction:column;z-index:20;animation:fadeIn .3s}
+#over .score{font-size:44px;color:#ffd700;font-weight:800;text-shadow:0 0 20px rgba(255,215,0,.5)}
+#over .sub{color:rgba(255,255,255,.6);margin-top:6px;font-size:14px}
+button{margin-top:18px;padding:12px 34px;font-size:15px;border:none;border-radius:12px;background:linear-gradient(135deg,#ffd700,#ff8c42);color:#1a1a2e;cursor:pointer;font-weight:700;box-shadow:0 6px 20px rgba(255,140,66,.35);transition:transform .15s,box-shadow .15s}
+button:hover{transform:translateY(-2px) scale(1.03);box-shadow:0 10px 26px rgba(255,140,66,.5)}
+button:active{transform:scale(.96)}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
 </style>
 </head>
 <body>
-<h2>🍬 消消乐</h2>
+<h2>消消乐</h2>
 <div id="info">点击相邻糖果交换 · 三个相同即可消除</div>
 <div id="scoreBox">分数: 0</div>
 <div id="board"></div>
-<div id="over"><div class="score" id="finalScore">0</div><button onclick="restart()">再来一局</button></div>
+<div id="over"><div class="score" id="finalScore">0</div><div class="sub">本局得分</div><button onclick="restart()">再来一局</button></div>
 <script>
 const ROWS=8,COLS=8;
 const CANDIES=['🍎','🍌','🍇','🍓','🍊','🍋'];
 let grid,score,selected,over;
+let actx=null;
+function sfx(freq,dur,type,vol,slide){
+  try{
+    actx=actx||new (window.AudioContext||window.webkitAudioContext)();
+    const o=actx.createOscillator(),g=actx.createGain();
+    o.type=type||'square';o.frequency.value=freq;
+    if(slide)o.frequency.exponentialRampToValueAtTime(Math.max(30,freq+slide),actx.currentTime+dur);
+    g.gain.setValueAtTime(vol||.12,actx.currentTime);
+    g.gain.exponentialRampToValueAtTime(.001,actx.currentTime+dur);
+    o.connect(g);g.connect(actx.destination);
+    o.start();o.stop(actx.currentTime+dur);
+  }catch(e){}
+}
+const sSwap=()=>sfx(300,.06,'triangle',.08,100);
+const sMatch=()=>{sfx(520,.08,'triangle',.1);setTimeout(()=>sfx(700,.08,'triangle',.08),40);};
+const sBad=()=>sfx(180,.1,'square',.08,-40);
 function restart(){
   grid=Array.from({length:ROWS},()=>Array.from({length:COLS},()=>CANDIES[Math.floor(Math.random()*CANDIES.length)]));
   score=0;selected=null;over=false;
@@ -50,12 +73,13 @@ function click(r,c){
   const [sr,sc]=selected;
   const dist=Math.abs(sr-r)+Math.abs(sc-c);
   if(dist===1){
-    // swap
     [grid[sr][sc],grid[r][c]]=[grid[r][c],grid[sr][sc]];
     const matches=findMatches();
     if(matches.length===0){
       [grid[sr][sc],grid[r][c]]=[grid[r][c],grid[sr][sc]];
+      sBad();
     }else{
+      sSwap();
       score+=matches.length*10;
       document.getElementById('scoreBox').textContent='分数: '+score;
       clearMatches();
@@ -81,8 +105,8 @@ function findMatches(){
 function clearMatches(){
   let matches=findMatches();
   while(matches.length){
+    sMatch();
     matches.forEach(([r,c])=>{grid[r][c]=null;});
-    // drop
     for(let c=0;c<COLS;c++){
       let write=ROWS-1;
       for(let r=ROWS-1;r>=0;r--){if(grid[r][c]){grid[write][c]=grid[r][c];if(write!==r)grid[r][c]=null;write--;}}
