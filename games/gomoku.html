@@ -2,29 +2,50 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <title>五子棋</title>
 <style>
-body{margin:0;background:#1a1a2e;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;color:#fff;overflow:hidden}
-h2{margin:0 0 10px;color:#ffd700}
-#info{font-size:13px;color:#aaa;margin-bottom:8px}
-#status{font-size:18px;color:#ffd700;margin-bottom:10px}
-canvas{background:#d9a066;border-radius:8px;cursor:pointer}
-#over{display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);align-items:center;justify-content:center;flex-direction:column;z-index:10}
-#over .score{font-size:40px;color:#ffd700;font-weight:bold}
-#over button{margin-top:16px;padding:12px 30px;font-size:16px;border:none;border-radius:8px;background:#ffd700;color:#1a1a2e;cursor:pointer;font-weight:bold}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;min-height:100vh;background:linear-gradient(135deg,#0f0c29 0%,#302b63 50%,#24243e 100%);display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:'Segoe UI',system-ui,sans-serif;color:#fff;overflow:hidden;padding:12px}
+h2{margin:0 0 6px;font-size:22px;background:linear-gradient(90deg,#ffd700,#ff8c42);-webkit-background-clip:text;background-clip:text;color:transparent;letter-spacing:2px}
+#info{font-size:12px;color:rgba(255,255,255,.55);margin-bottom:10px;text-align:center}
+#status{font-size:15px;color:#ffd700;margin-bottom:10px;background:rgba(255,255,255,.06);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:8px 22px;box-shadow:0 8px 24px rgba(0,0,0,.35)}
+#c{background:linear-gradient(180deg,#d9a066,#c98a3d);border-radius:12px;cursor:pointer;box-shadow:0 12px 40px rgba(0,0,0,.45);touch-action:none}
+#over{display:none;position:fixed;inset:0;background:rgba(10,8,30,.75);backdrop-filter:blur(6px);align-items:center;justify-content:center;flex-direction:column;z-index:20;animation:fadeIn .3s}
+#over .score{font-size:44px;color:#ffd700;font-weight:800;text-shadow:0 0 20px rgba(255,215,0,.5)}
+#over .sub{color:rgba(255,255,255,.6);margin-top:6px;font-size:14px}
+button{margin-top:18px;padding:12px 34px;font-size:15px;border:none;border-radius:12px;background:linear-gradient(135deg,#ffd700,#ff8c42);color:#1a1a2e;cursor:pointer;font-weight:700;box-shadow:0 6px 20px rgba(255,140,66,.35);transition:transform .15s,box-shadow .15s}
+button:hover{transform:translateY(-2px) scale(1.03);box-shadow:0 10px 26px rgba(255,140,66,.5)}
+button:active{transform:scale(.96)}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@media(max-width:640px){#c{width:min(94vw,450px);height:auto}}
 </style>
 </head>
 <body>
-<h2>⚫ 五子棋</h2>
+<h2>五子棋</h2>
 <div id="info">点击落子 · 与电脑对战 · 五子连线获胜</div>
 <div id="status">轮到你 (黑棋)</div>
 <canvas id="c" width="450" height="450"></canvas>
-<div id="over"><div class="score" id="finalScore">0</div><button onclick="restart()">再来一局</button></div>
+<div id="over"><div class="score" id="finalScore">0</div><div class="sub">胜利次数</div><button onclick="restart()">再来一局</button></div>
 <script>
 const cv=document.getElementById('c'),ctx=cv.getContext('2d');
 const N=15,SIZE=30,OFF=15;
 let board,playerTurn,over,wins=0;
+let actx=null;
+function sfx(freq,dur,type,vol,slide){
+  try{
+    actx=actx||new (window.AudioContext||window.webkitAudioContext)();
+    const o=actx.createOscillator(),g=actx.createGain();
+    o.type=type||'square';o.frequency.value=freq;
+    if(slide)o.frequency.exponentialRampToValueAtTime(Math.max(30,freq+slide),actx.currentTime+dur);
+    g.gain.setValueAtTime(vol||.12,actx.currentTime);
+    g.gain.exponentialRampToValueAtTime(.001,actx.currentTime+dur);
+    o.connect(g);g.connect(actx.destination);
+    o.start();o.stop(actx.currentTime+dur);
+  }catch(e){}
+}
+const sPlace=()=>sfx(300,.06,'triangle',.1,100);
+const sWin=()=>{sfx(523,.12,'triangle',.12);setTimeout(()=>sfx(659,.12,'triangle',.12),120);setTimeout(()=>sfx(784,.2,'triangle',.12),240);};
 function restart(){
   board=Array.from({length:N},()=>Array(N).fill(0));
   playerTurn=true;over=false;
@@ -47,27 +68,42 @@ function draw(){
     }
   }
 }
-cv.onclick=(e)=>{
+function placeAt(clientX,clientY){
   if(over||!playerTurn)return;
   const rect=cv.getBoundingClientRect();
-  const x=Math.round((e.clientX-rect.left-OFF)/SIZE);
-  const y=Math.round((e.clientY-rect.top-OFF)/SIZE);
+  const scale=450/rect.width;
+  const x=Math.round((clientX-rect.left)*scale-OFF)/SIZE;
+  const y=Math.round((clientY-rect.top)*scale-OFF)/SIZE;
   if(x<0||x>=N||y<0||y>=N||board[y][x])return;
-  board[y][x]=1;
+  board[y][x]=1;sPlace();
   if(checkWin(y,x,1)){endGame('你赢了!');return;}
   if(isFull()){endGame('平局');return;}
   playerTurn=false;
   document.getElementById('status').textContent='电脑思考中 (白棋)...';
   draw();
   setTimeout(aiMove,300);
-};
+}
+cv.onclick=e=>placeAt(e.clientX,e.clientY);
+cv.addEventListener('touchstart',e=>{e.preventDefault();const t=e.touches[0];placeAt(t.clientX,t.clientY);},{passive:false});
 function aiMove(){
-  // 简单AI：随机落子（优先中心附近）
   const empty=[];
   for(let r=0;r<N;r++)for(let c=0;c<N;c++)if(!board[r][c])empty.push([r,c]);
   if(!empty.length){endGame('平局');return;}
-  const [y,x]=empty[Math.floor(Math.random()*empty.length)];
-  board[y][x]=2;
+  // 增强AI：优先堵玩家活四/冲四，其次随机（中心加权）
+  let best=null,bestScore=-1;
+  for(let [r,c] of empty){
+    let s=0;
+    const center=Math.abs(r-7)+Math.abs(c-7);
+    s+=(14-center)*2;
+    board[r][c]=2;
+    if(checkWin(r,c,2))s+=100000;
+    board[r][c]=1;
+    if(checkWin(r,c,1))s+=50000;
+    board[r][c]=0;
+    if(s>bestScore){bestScore=s;best=[r,c];}
+  }
+  const [y,x]=best;
+  board[y][x]=2;sPlace();
   if(checkWin(y,x,2)){endGame('电脑赢了');return;}
   if(isFull()){endGame('平局');return;}
   playerTurn=true;
@@ -90,7 +126,7 @@ function endGame(msg){
   document.getElementById('status').textContent=msg;
   document.getElementById('finalScore').textContent=msg;
   document.getElementById('over').style.display='flex';
-  if(msg==='你赢了!'){wins++;parent.postMessage({type:'game-score',game:'gomoku',score:wins},'*');}
+  if(msg==='你赢了!'){wins++;sWin();parent.postMessage({type:'game-score',game:'gomoku',score:wins},'*');}
 }
 restart();
 </script>
