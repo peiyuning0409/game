@@ -2,31 +2,55 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <title>记忆翻牌</title>
 <style>
-body{margin:0;background:#1a1a2e;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;color:#fff;overflow:hidden}
-h2{margin:0 0 10px;color:#ffd700}
-#info{font-size:13px;color:#aaa;margin-bottom:8px}
-#scoreBox{font-size:18px;color:#ffd700;margin-bottom:10px}
-#board{display:grid;grid-template-columns:repeat(4,90px);gap:10px}
-.card{width:90px;height:90px;background:#4d96ff;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:40px;cursor:pointer;user-select:none;transition:.2s}
-.card.flip{background:#fff}
-.card.matched{background:#4caf50;cursor:default}
-#over{display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);align-items:center;justify-content:center;flex-direction:column;z-index:10}
-#over .score{font-size:40px;color:#ffd700;font-weight:bold}
-#over button{margin-top:16px;padding:12px 30px;font-size:16px;border:none;border-radius:8px;background:#ffd700;color:#1a1a2e;cursor:pointer;font-weight:bold}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;min-height:100vh;background:linear-gradient(135deg,#0f0c29 0%,#302b63 50%,#24243e 100%);display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:'Segoe UI',system-ui,sans-serif;color:#fff;overflow:hidden;padding:12px}
+h2{margin:0 0 6px;font-size:22px;background:linear-gradient(90deg,#ffd700,#ff8c42);-webkit-background-clip:text;background-clip:text;color:transparent;letter-spacing:2px}
+#info{font-size:12px;color:rgba(255,255,255,.55);margin-bottom:10px;text-align:center}
+#scoreBox{font-size:18px;color:#ffd700;margin-bottom:10px;text-shadow:0 0 12px rgba(255,215,0,.3)}
+#board{display:grid;grid-template-columns:repeat(4,1fr);gap:min(2.5vw,10px);width:min(92vw,400px)}
+.card{aspect-ratio:1;background:linear-gradient(135deg,#4d96ff,#6a5acd);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:min(9vw,40px);cursor:pointer;user-select:none;transition:transform .2s,background .2s;box-shadow:0 6px 18px rgba(0,0,0,.3)}
+.card:hover{transform:translateY(-3px)}
+.card.flip{background:rgba(255,255,255,.9);transform:rotateY(180deg)}
+.card.matched{background:linear-gradient(135deg,#4caf50,#2e7d32);cursor:default;animation:matchPop .3s}
+@keyframes matchPop{0%{transform:scale(1)}50%{transform:scale(1.15)}100%{transform:scale(1)}}
+#over{display:none;position:fixed;inset:0;background:rgba(10,8,30,.75);backdrop-filter:blur(6px);align-items:center;justify-content:center;flex-direction:column;z-index:20;animation:fadeIn .3s}
+#over .score{font-size:44px;color:#ffd700;font-weight:800;text-shadow:0 0 20px rgba(255,215,0,.5)}
+#over .sub{color:rgba(255,255,255,.6);margin-top:6px;font-size:14px}
+button{margin-top:18px;padding:12px 34px;font-size:15px;border:none;border-radius:12px;background:linear-gradient(135deg,#ffd700,#ff8c42);color:#1a1a2e;cursor:pointer;font-weight:700;box-shadow:0 6px 20px rgba(255,140,66,.35);transition:transform .15s,box-shadow .15s}
+button:hover{transform:translateY(-2px) scale(1.03);box-shadow:0 10px 26px rgba(255,140,66,.5)}
+button:active{transform:scale(.96)}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
 </style>
 </head>
 <body>
-<h2>🃏 记忆翻牌</h2>
+<h2>记忆翻牌</h2>
 <div id="info">翻开两张相同的牌配对</div>
 <div id="scoreBox">步数: 0 · 配对: 0/8</div>
 <div id="board"></div>
-<div id="over"><div class="score" id="finalScore">0</div><button onclick="restart()">再来一局</button></div>
+<div id="over"><div class="score" id="finalScore">0</div><div class="sub">本局得分</div><button onclick="restart()">再来一局</button></div>
 <script>
 const EMOJIS=['🍎','🍌','🍇','🍓','🍉','🍒','🍑','🥝'];
 let cards,flipped,matched,steps,lock;
+let actx=null;
+function sfx(freq,dur,type,vol,slide){
+  try{
+    actx=actx||new (window.AudioContext||window.webkitAudioContext)();
+    const o=actx.createOscillator(),g=actx.createGain();
+    o.type=type||'square';o.frequency.value=freq;
+    if(slide)o.frequency.exponentialRampToValueAtTime(Math.max(30,freq+slide),actx.currentTime+dur);
+    g.gain.setValueAtTime(vol||.12,actx.currentTime);
+    g.gain.exponentialRampToValueAtTime(.001,actx.currentTime+dur);
+    o.connect(g);g.connect(actx.destination);
+    o.start();o.stop(actx.currentTime+dur);
+  }catch(e){}
+}
+const sFlip=()=>sfx(400,.05,'triangle',.08,100);
+const sMatch=()=>{sfx(523,.1,'triangle',.1);setTimeout(()=>sfx(784,.12,'triangle',.1),80);};
+const sMismatch=()=>sfx(200,.12,'square',.08,-60);
+const sWin=()=>{sfx(523,.12,'triangle',.12);setTimeout(()=>sfx(659,.12,'triangle',.12),120);setTimeout(()=>sfx(784,.2,'triangle',.12),240);};
 function restart(){
   cards=[...EMOJIS,...EMOJIS].sort(()=>Math.random()-0.5);
   flipped=[];matched=0;steps=0;lock=false;
@@ -42,7 +66,7 @@ function restart(){
 }
 function flip(d,i){
   if(lock||d.classList.contains('flip')||d.classList.contains('matched'))return;
-  d.classList.add('flip');d.textContent=cards[i];
+  d.classList.add('flip');d.textContent=cards[i];sFlip();
   flipped.push({d,i});
   if(flipped.length===2){
     steps++;lock=true;
@@ -51,16 +75,18 @@ function flip(d,i){
     if(cards[a.i]===cards[b.i]){
       a.d.classList.add('matched');b.d.classList.add('matched');
       a.d.classList.remove('flip');b.d.classList.remove('flip');
-      matched++;flipped=[];lock=false;
+      matched++;flipped=[];lock=false;sMatch();
       document.getElementById('scoreBox').textContent='步数: '+steps+' · 配对: '+matched+'/8';
       if(matched===8){gameOver();}
     }else{
+      sMismatch();
       setTimeout(()=>{a.d.classList.remove('flip');b.d.classList.remove('flip');a.d.textContent='';b.d.textContent='';flipped=[];lock=false;},800);
     }
   }
 }
 function gameOver(){
   const score=Math.max(0,1000-steps*20);
+  sWin();
   document.getElementById('finalScore').textContent='完成! 步数 '+steps+' · 得分 '+score;
   document.getElementById('over').style.display='flex';
   parent.postMessage({type:'game-score',game:'memory',score:score},'*');
