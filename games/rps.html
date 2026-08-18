@@ -2,71 +2,93 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <title>石头剪刀布</title>
 <style>
-body{margin:0;background:#1a1a2e;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;color:#fff;overflow:hidden}
-h2{margin:0 0 10px;color:#ffd700}
-#info{font-size:13px;color:#aaa;margin-bottom:8px}
-#scoreBox{font-size:18px;color:#ffd700;margin-bottom:16px}
-#arena{display:flex;align-items:center;justify-content:center;gap:40px;margin-bottom:20px}
-#arena .side{text-align:center}
-#arena .side .lbl{color:#aaa;font-size:13px;margin-bottom:6px}
-#arena .side .emoji{font-size:80px;min-height:90px}
-#result{font-size:22px;color:#ffd700;margin-bottom:16px;min-height:30px}
-#choices{display:flex;gap:16px}
-.choice{width:90px;height:90px;background:#3a3a5a;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:44px;cursor:pointer;transition:.2s}
-.choice:hover{background:#4a4a6a;transform:translateY(-4px)}
-#over{display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);align-items:center;justify-content:center;flex-direction:column;z-index:10}
-#over .score{font-size:40px;color:#ffd700;font-weight:bold}
-#over button{margin-top:16px;padding:12px 30px;font-size:16px;border:none;border-radius:8px;background:#ffd700;color:#1a1a2e;cursor:pointer;font-weight:bold}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;min-height:100vh;background:linear-gradient(135deg,#0f0c29 0%,#302b63 50%,#24243e 100%);display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:'Segoe UI',system-ui,sans-serif;color:#fff;overflow:hidden;padding:12px}
+h2{margin:0 0 6px;font-size:22px;background:linear-gradient(90deg,#ffd700,#ff8c42);-webkit-background-clip:text;background-clip:text;color:transparent;letter-spacing:2px}
+#info{font-size:12px;color:rgba(255,255,255,.55);margin-bottom:10px;text-align:center}
+#hud{display:flex;gap:24px;margin-bottom:10px;background:rgba(255,255,255,.06);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:8px 22px;box-shadow:0 8px 24px rgba(0,0,0,.35)}
+#hud .lbl{color:rgba(255,255,255,.55);font-size:11px;letter-spacing:1px}
+#hud .val{font-size:20px;color:#ffd700;font-weight:700;text-shadow:0 0 12px rgba(255,215,0,.4)}
+#result{font-size:22px;color:#ffd700;margin:12px 0;min-height:30px;text-shadow:0 0 14px rgba(255,215,0,.3)}
+#choices{display:flex;gap:14px;flex-wrap:wrap;justify-content:center}
+.choice{width:min(26vw,110px);aspect-ratio:1;border-radius:16px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:min(12vw,48px);cursor:pointer;transition:transform .15s,box-shadow .15s,background .15s}
+.choice:hover{transform:translateY(-4px) scale(1.05);background:rgba(255,255,255,.14);box-shadow:0 10px 26px rgba(255,140,66,.3)}
+.choice:active{transform:scale(.94)}
+.choice span{font-size:12px;color:rgba(255,255,255,.6);margin-top:6px}
+#over{display:none;position:fixed;inset:0;background:rgba(10,8,30,.75);backdrop-filter:blur(6px);align-items:center;justify-content:center;flex-direction:column;z-index:20;animation:fadeIn .3s}
+#over .score{font-size:44px;color:#ffd700;font-weight:800;text-shadow:0 0 20px rgba(255,215,0,.5)}
+#over .sub{color:rgba(255,255,255,.6);margin-top:6px;font-size:14px}
+button{margin-top:18px;padding:12px 34px;font-size:15px;border:none;border-radius:12px;background:linear-gradient(135deg,#ffd700,#ff8c42);color:#1a1a2e;cursor:pointer;font-weight:700;box-shadow:0 6px 20px rgba(255,140,66,.35);transition:transform .15s,box-shadow .15s}
+button:hover{transform:translateY(-2px) scale(1.03);box-shadow:0 10px 26px rgba(255,140,66,.5)}
+button:active{transform:scale(.96)}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
 </style>
 </head>
 <body>
-<h2>✊ 石头剪刀布</h2>
-<div id="info">选择你的出拳 · 三局两胜</div>
-<div id="scoreBox">你 0 : 0 电脑</div>
-<div id="arena">
-  <div class="side"><div class="lbl">你</div><div class="emoji" id="youE">❓</div></div>
-  <div class="side"><div class="lbl">电脑</div><div class="emoji" id="comE">❓</div></div>
+<h2>石头剪刀布</h2>
+<div id="info">三局两胜 · 先赢两局获胜</div>
+<div id="hud">
+  <div><div class="lbl">你</div><div class="val" id="youBox">0</div></div>
+  <div><div class="lbl">电脑</div><div class="val" id="cpuBox">0</div></div>
 </div>
-<div id="result">开始吧!</div>
+<div id="result">出招吧!</div>
 <div id="choices">
-  <div class="choice" onclick="play('✊')">✊</div>
-  <div class="choice" onclick="play('✌️')">✌️</div>
-  <div class="choice" onclick="play('🖐️')">🖐️</div>
+  <div class="choice" onclick="play('rock')">✊<span>石头</span></div>
+  <div class="choice" onclick="play('paper')">✋<span>布</span></div>
+  <div class="choice" onclick="play('scissors')">✌️<span>剪刀</span></div>
 </div>
-<div id="over"><div class="score" id="finalScore">0</div><button onclick="restart()">再来一局</button></div>
+<div id="over"><div class="score" id="finalScore">0</div><div class="sub">本局结果</div><button onclick="restart()">再来一局</button></div>
 <script>
-const RULES={'✊':'✌️','✌️':'🖐️','🖐️':'✊'};
-let you=0,com=0,round=0;
-function play(mine){
-  const opts=['✊','✌️','🖐️'];
-  const c=opts[Math.floor(Math.random()*3)];
-  document.getElementById('youE').textContent=mine;
-  document.getElementById('comE').textContent=c;
-  round++;
-  let msg;
-  if(mine===c)msg='平局!';
-  else if(RULES[mine]===c){you++;msg='你赢了!';}
-  else{com++;msg='电脑赢了!';}
-  document.getElementById('result').textContent=msg;
-  document.getElementById('scoreBox').textContent='你 '+you+' : '+com+' 电脑';
-  if(round>=3){
-    const final=you>com?'你获胜!':you<com?'电脑获胜!':'平局';
-    document.getElementById('finalScore').textContent=final+' (你 '+you+' : '+com+' 电脑)';
-    document.getElementById('over').style.display='flex';
-    if(you>com)parent.postMessage({type:'game-score',game:'rps',score:you},'*');
-  }
+const NAMES={rock:'石头',paper:'布',scissors:'剪刀'};
+let you,cpu,over;
+let actx=null;
+function sfx(freq,dur,type,vol,slide){
+  try{
+    actx=actx||new (window.AudioContext||window.webkitAudioContext)();
+    const o=actx.createOscillator(),g=actx.createGain();
+    o.type=type||'square';o.frequency.value=freq;
+    if(slide)o.frequency.exponentialRampToValueAtTime(Math.max(30,freq+slide),actx.currentTime+dur);
+    g.gain.setValueAtTime(vol||.12,actx.currentTime);
+    g.gain.exponentialRampToValueAtTime(.001,actx.currentTime+dur);
+    o.connect(g);g.connect(actx.destination);
+    o.start();o.stop(actx.currentTime+dur);
+  }catch(e){}
 }
+const sPlay=()=>sfx(300,.05,'triangle',.08,100);
+const sWin=()=>{sfx(523,.12,'triangle',.12);setTimeout(()=>sfx(659,.12,'triangle',.12),120);setTimeout(()=>sfx(784,.2,'triangle',.12),240);};
+const sLose=()=>{sfx(400,.2,'sawtooth',.12,-200);setTimeout(()=>sfx(200,.3,'sawtooth',.12,-120),150);};
 function restart(){
-  you=0;com=0;round=0;
-  document.getElementById('youE').textContent='❓';
-  document.getElementById('comE').textContent='❓';
-  document.getElementById('result').textContent='开始吧!';
-  document.getElementById('scoreBox').textContent='你 0 : 0 电脑';
+  you=0;cpu=0;over=false;
+  document.getElementById('youBox').textContent=0;
+  document.getElementById('cpuBox').textContent=0;
+  document.getElementById('result').textContent='出招吧!';
   document.getElementById('over').style.display='none';
 }
+function play(p){
+  if(over)return;
+  sPlay();
+  const c=['rock','paper','scissors'][Math.floor(Math.random()*3)];
+  let r;
+  if(p===c)r='平局';
+  else if((p==='rock'&&c==='scissors')||(p==='paper'&&c==='rock')||(p==='scissors'&&c==='paper')){r='你赢了!';you++;}
+  else{r='电脑赢了';cpu++;}
+  document.getElementById('youBox').textContent=you;
+  document.getElementById('cpuBox').textContent=cpu;
+  document.getElementById('result').textContent='你出'+NAMES[p]+' · 电脑出'+NAMES[c]+' → '+r;
+  if(you>=2){gameOver('你获胜!',you);}
+  else if(cpu>=2){gameOver('电脑获胜',cpu);}
+}
+function gameOver(msg,score){
+  over=true;
+  document.getElementById('finalScore').textContent=msg;
+  document.getElementById('over').style.display='flex';
+  if(you>=2){sWin();parent.postMessage({type:'game-score',game:'rps',score:score},'*');}
+  else sLose();
+}
+restart();
 </script>
 </body>
 </html>
