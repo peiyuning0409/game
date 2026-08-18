@@ -2,44 +2,74 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <title>2048</title>
 <style>
-body{margin:0;background:#1a1a2e;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;color:#fff;overflow:hidden}
-h2{margin:0 0 10px;color:#ffd700}
-#info{font-size:13px;color:#aaa;margin-bottom:8px}
-#scoreBox{font-size:20px;color:#ffd700;margin-bottom:10px}
-#board{display:grid;grid-template-columns:repeat(4,90px);gap:8px;background:#444;padding:8px;border-radius:10px}
-.tile{width:90px;height:90px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:30px;font-weight:bold;background:#666;color:#fff;transition:.1s}
-#over{display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);align-items:center;justify-content:center;flex-direction:column;z-index:10}
-#over .score{font-size:40px;color:#ffd700;font-weight:bold}
-#over button{margin-top:16px;padding:12px 30px;font-size:16px;border:none;border-radius:8px;background:#ffd700;color:#1a1a2e;cursor:pointer;font-weight:bold}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;min-height:100vh;background:linear-gradient(135deg,#0f0c29 0%,#302b63 50%,#24243e 100%);display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:'Segoe UI',system-ui,sans-serif;color:#fff;overflow:hidden;padding:12px}
+h2{margin:0 0 6px;font-size:22px;background:linear-gradient(90deg,#ffd700,#ff8c42);-webkit-background-clip:text;background-clip:text;color:transparent;letter-spacing:2px}
+#info{font-size:12px;color:rgba(255,255,255,.55);margin-bottom:10px;text-align:center}
+#hud{display:flex;gap:24px;margin-bottom:10px;background:rgba(255,255,255,.06);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:8px 22px;box-shadow:0 8px 24px rgba(0,0,0,.35)}
+#hud .lbl{color:rgba(255,255,255,.55);font-size:11px;letter-spacing:1px}
+#hud .val{font-size:20px;color:#ffd700;font-weight:700;text-shadow:0 0 12px rgba(255,215,0,.4)}
+#board{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;background:rgba(255,255,255,.08);padding:10px;border-radius:14px;width:min(92vw,380px);box-shadow:0 12px 40px rgba(0,0,0,.45)}
+.tile{aspect-ratio:1;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:30px;font-weight:bold;background:rgba(255,255,255,.08);color:#fff;transition:transform .1s,background .1s}
+.tile.pop{animation:pop .15s}
+@keyframes pop{0%{transform:scale(.7)}100%{transform:scale(1)}}
+#over{display:none;position:fixed;inset:0;background:rgba(10,8,30,.75);backdrop-filter:blur(6px);align-items:center;justify-content:center;flex-direction:column;z-index:20;animation:fadeIn .3s}
+#over .score{font-size:44px;color:#ffd700;font-weight:800;text-shadow:0 0 20px rgba(255,215,0,.5)}
+#over .sub{color:rgba(255,255,255,.6);margin-top:6px;font-size:14px}
+button{margin-top:18px;padding:12px 34px;font-size:15px;border:none;border-radius:12px;background:linear-gradient(135deg,#ffd700,#ff8c42);color:#1a1a2e;cursor:pointer;font-weight:700;box-shadow:0 6px 20px rgba(255,140,66,.35);transition:transform .15s,box-shadow .15s}
+button:hover{transform:translateY(-2px) scale(1.03);box-shadow:0 10px 26px rgba(255,140,66,.5)}
+button:active{transform:scale(.96)}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
 </style>
 </head>
 <body>
-<h2>🔢 2048</h2>
+<h2>2048</h2>
 <div id="info">方向键 / WASD 移动 · 相同数字合并</div>
-<div id="scoreBox">分数: 0</div>
+<div id="hud">
+  <div><div class="lbl">分数</div><div class="val" id="scoreBox">0</div></div>
+  <div><div class="lbl">最高</div><div class="val" id="bestBox">0</div></div>
+</div>
 <div id="board"></div>
-<div id="over"><div class="score" id="finalScore">0</div><button onclick="restart()">再来一局</button></div>
+<div id="over"><div class="score" id="finalScore">0</div><div class="sub">本局得分</div><button onclick="restart()">再来一局</button></div>
 <script>
 const COLORS={2:'#eee4da',4:'#ede0c8',8:'#f2b179',16:'#f59563',32:'#f67c5f',64:'#f65e3b',128:'#edcf72',256:'#edcc61',512:'#edc850',1024:'#edc53f',2048:'#edc22e'};
-let grid,score,over;
+let grid,score,over,best=+(localStorage.getItem('g2048best')||0);
+let actx=null;
+function sfx(freq,dur,type,vol,slide){
+  try{
+    actx=actx||new (window.AudioContext||window.webkitAudioContext)();
+    const o=actx.createOscillator(),g=actx.createGain();
+    o.type=type||'square';o.frequency.value=freq;
+    if(slide)o.frequency.exponentialRampToValueAtTime(Math.max(30,freq+slide),actx.currentTime+dur);
+    g.gain.setValueAtTime(vol||.12,actx.currentTime);
+    g.gain.exponentialRampToValueAtTime(.001,actx.currentTime+dur);
+    o.connect(g);g.connect(actx.destination);
+    o.start();o.stop(actx.currentTime+dur);
+  }catch(e){}
+}
+const sMove=()=>sfx(200,.05,'square',.05);
+const sMerge=()=>{sfx(440,.08,'triangle',.1);setTimeout(()=>sfx(660,.1,'triangle',.08),50);};
+const sOver=()=>{sfx(400,.2,'sawtooth',.12,-200);setTimeout(()=>sfx(200,.3,'sawtooth',.12,-120),150);};
 function restart(){grid=Array.from({length:4},()=>Array(4).fill(0));score=0;over=false;document.getElementById('over').style.display='none';addTile();addTile();render();}
-function addTile(){const empty=[];for(let r=0;r<4;r++)for(let c=0;c<4;c++)if(!grid[r][c])empty.push([r,c]);if(empty.length){const [r,c]=empty[Math.floor(Math.random()*empty.length)];grid[r][c]=Math.random()<0.9?2:4;}}
+function addTile(){const empty=[];for(let r=0;r<4;r++)for(let c=0;c<4;c++)if(!grid[r][c])empty.push([r,c]);if(empty.length){const [r,c]=empty[Math.floor(Math.random()*empty.length)];grid[r][c]=Math.random()<0.9?2:4;return [r,c];}return null;}
 function render(){
   const b=document.getElementById('board');b.innerHTML='';
   for(let r=0;r<4;r++)for(let c=0;c<4;c++){
     const v=grid[r][c];
     const d=document.createElement('div');
     d.className='tile';
-    if(v){d.textContent=v;d.style.background=COLORS[v]||'#3c3a32';d.style.color=v>4?'#fff':'#776e65';d.style.fontSize=v>=1024?'22px':'30px';}
+    if(v){d.textContent=v;d.style.background=COLORS[v]||'#3c3a32';d.style.color=v>4?'#fff':'#776e65';d.style.fontSize=v>=1024?'22px':'30px';d.style.boxShadow='0 0 16px '+(COLORS[v]||'#3c3a32')+'88';}
     b.appendChild(d);
   }
-  document.getElementById('scoreBox').textContent='分数: '+score;
+  document.getElementById('scoreBox').textContent=score;
+  document.getElementById('bestBox').textContent=Math.max(best,score);
 }
-function slide(row){const arr=row.filter(v=>v);for(let i=0;i<arr.length-1;i++){if(arr[i]===arr[i+1]){arr[i]*=2;score+=arr[i];arr.splice(i+1,1);}}while(arr.length<4)arr.push(0);return arr;}
+function slide(row){const arr=row.filter(v=>v);for(let i=0;i<arr.length-1;i++){if(arr[i]===arr[i+1]){arr[i]*=2;score+=arr[i];sMerge();arr.splice(i+1,1);}}while(arr.length<4)arr.push(0);return arr;}
 function move(dir){
+  if(over)return;
   let moved=false;
   const newGrid=Array.from({length:4},()=>Array(4).fill(0));
   for(let i=0;i<4;i++){
@@ -65,7 +95,9 @@ function checkOver(){
     if(c<3&&grid[r][c]===grid[r][c+1])return;
     if(r<3&&grid[r][c]===grid[r+1][c])return;
   }
-  over=true;document.getElementById('finalScore').textContent=score;document.getElementById('over').style.display='flex';
+  over=true;best=Math.max(best,score);localStorage.setItem('g2048best',best);
+  document.getElementById('finalScore').textContent=score;document.getElementById('over').style.display='flex';
+  sOver();
   parent.postMessage({type:'game-score',game:'2048',score:score},'*');
 }
 document.addEventListener('keydown',e=>{
@@ -76,6 +108,13 @@ document.addEventListener('keydown',e=>{
   else if(k==='arrowleft'||k==='a')move('left');
   else if(k==='arrowright'||k==='d')move('right');
 });
+let tsx=0,tsy=0;
+const bd=document.getElementById('board');
+bd.addEventListener('touchstart',e=>{const t=e.touches[0];tsx=t.clientX;tsy=t.clientY;e.preventDefault();},{passive:false});
+bd.addEventListener('touchmove',e=>e.preventDefault(),{passive:false});
+bd.addEventListener('touchend',e=>{const t=e.changedTouches[0];const dx=t.clientX-tsx,dy=t.clientY-tsy;
+  if(Math.abs(dx)<24&&Math.abs(dy)<24)return;
+  if(Math.abs(dx)>Math.abs(dy))move(dx>0?'right':'left');else move(dy>0?'down':'up');});
 restart();
 </script>
 </body>
