@@ -72,7 +72,14 @@ body {
 .game-card .icon { font-size:44px; margin-bottom:10px; }
 .game-card .gname { font-size:16px; font-weight:bold; margin-bottom:4px; }
 .game-card .gdesc { font-size:12px; color:#aaa; }
-.game-card .best { position:absolute; top:10px; right:10px; font-size:11px; color:#ffd700; background:rgba(0,0,0,.4); padding:3px 8px; border-radius:20px; }
+.game-card .best { position:absolute; top:10px; left:10px; font-size:11px; color:#ffd700; background:rgba(0,0,0,.4); padding:3px 8px; border-radius:20px; }
+.game-card .more-btn {
+  position:absolute; top:6px; right:6px; width:28px; height:28px; border-radius:50%;
+  background:rgba(255,255,255,.1); border:1px solid rgba(255,255,255,.25); color:#fff;
+  font-size:17px; line-height:26px; cursor:pointer; z-index:5; transition:.2s; text-align:center;
+  font-family:monospace; user-select:none;
+}
+.game-card .more-btn:hover { background:linear-gradient(90deg,#ffd700,#ff8c00); color:#1a1a2e; border-color:#ffd700; transform:scale(1.1); }
 /* 排行榜 */
 .rank-table { width:100%; border-collapse:collapse; background:rgba(255,255,255,.05); border-radius:12px; overflow:hidden; }
 .rank-table th,.rank-table td { padding:12px 16px; text-align:center; font-size:14px; }
@@ -89,6 +96,26 @@ body {
 #gameModal .gm-head { display:flex; align-items:center; justify-content:space-between; padding:12px 20px; background:#1a1a2e; }
 #gameModal .gm-head .t { font-size:18px; font-weight:bold; color:#ffd700; }
 #gameModal iframe { flex:1; border:none; width:100%; background:#000; }
+/* 游戏详情弹窗 */
+#infoModal {
+  position:fixed; inset:0; background:rgba(0,0,0,.75); z-index:300; display:none;
+  align-items:center; justify-content:center; padding:20px;
+}
+.info-box {
+  background:linear-gradient(135deg,#1a1a2e,#2b2b4a); border:1px solid rgba(255,215,0,.35);
+  border-radius:18px; max-width:560px; width:100%; max-height:82vh; overflow:auto; padding:26px 30px;
+  box-shadow:0 20px 60px rgba(0,0,0,.6);
+}
+.info-box .info-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:4px; }
+.info-box .info-title { font-size:24px; font-weight:bold; color:#ffd700; }
+.info-box .info-desc { color:#aaa; font-size:14px; margin-bottom:14px; }
+.info-box .info-sec { margin:14px 0 6px; font-size:16px; font-weight:bold; color:#ffd700; }
+.info-box .info-text { font-size:14px; line-height:1.9; color:#e8e8e8; white-space:pre-line; }
+.info-actions { display:flex; gap:10px; justify-content:flex-end; margin-top:18px; }
+.info-close { padding:8px 20px; border-radius:8px; border:1px solid rgba(255,255,255,.25); background:transparent; color:#fff; cursor:pointer; font-size:13px; }
+.info-close:hover { background:rgba(255,255,255,.12); }
+.info-play { padding:8px 22px; border-radius:8px; border:none; background:linear-gradient(90deg,#ffd700,#ff8c00); color:#1a1a2e; font-weight:bold; cursor:pointer; font-size:13px; }
+.info-play:hover { box-shadow:0 6px 16px rgba(255,165,0,.4); }
 /* 个人中心 */
 .stat-cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:16px; margin-bottom:24px; }
 .stat-card { background:rgba(255,255,255,.07); border-radius:14px; padding:20px; text-align:center; border:1px solid rgba(255,255,255,.1); }
@@ -153,32 +180,53 @@ body {
   <iframe id="gameFrame" src="about:blank"></iframe>
 </div>
 
+<!-- 游戏详情弹窗 -->
+<div id="infoModal">
+  <div class="info-box">
+    <div class="info-head">
+      <div class="info-title" id="infoTitle"></div>
+      <button class="info-close" onclick="closeInfo()">✕ 关闭</button>
+    </div>
+    <div class="info-desc" id="infoDesc"></div>
+    <div class="info-sec">🎯 游戏目标</div>
+    <div class="info-text" id="infoGoal"></div>
+    <div class="info-sec">🕹️ 操作方式</div>
+    <div class="info-text" id="infoOper"></div>
+    <div class="info-sec">💡 小技巧</div>
+    <div class="info-text" id="infoTips"></div>
+    <div class="info-actions">
+      <button class="info-close" onclick="closeInfo()">返回大厅</button>
+      <button class="info-play" id="infoPlayBtn" onclick="playFromInfo()">🎮 开始游戏</button>
+    </div>
+  </div>
+</div>
+
 <div id="toast"></div>
 
 <script>
 /* ============ 全局状态 ============ */
 let currentUser = null;
 const GAMES = [
-  { id:'dino',        name:'小恐龙跑酷',   icon:'🦖', desc:'经典 Chrome 恐龙', score:'分数' },
-  { id:'tetris',      name:'俄罗斯方块',   icon:'🧱', desc:'经典下落方块',     score:'分数' },
-  { id:'snake',       name:'贪吃蛇',       icon:'🐍', desc:'经典贪吃蛇',       score:'分数' },
-  { id:'minesweeper', name:'扫雷',         icon:'💣', desc:'Windows 经典扫雷', score:'用时(秒)' },
-  { id:'2048',        name:'2048',         icon:'🔢', desc:'数字合成',         score:'分数' },
-  { id:'woodfish',    name:'敲木鱼',       icon:'🪵', desc:'解压敲木鱼',       score:'功德' },
-  { id:'whack',       name:'打地鼠',       icon:'🔨', desc:'经典打地鼠',       score:'分数' },
-  { id:'memory',      name:'记忆翻牌',     icon:'🃏', desc:'翻牌配对',         score:'分数' },
-  { id:'tictactoe',   name:'井字棋',       icon:'⭕', desc:'三子连线',         score:'胜场' },
-  { id:'gomoku',      name:'五子棋',       icon:'⚫', desc:'人机对战',         score:'胜场' },
-  { id:'breakout',    name:'打砖块',       icon:'🏓', desc:'经典弹球打砖块',   score:'分数' },
-  { id:'plane',       name:'飞机大战',     icon:'✈️', desc:'经典飞机射击',     score:'分数' },
-  { id:'guess',       name:'猜数字',       icon:'🔮', desc:'猜 1-100',         score:'猜中次数' },
-  { id:'sudoku',      name:'数独',         icon:'🧩', desc:'经典数独',         score:'完成数' },
-  { id:'match3',      name:'消消乐',       icon:'🍬', desc:'三消糖果',         score:'分数' },
-  { id:'rps',         name:'石头剪刀布',   icon:'✊', desc:'人机对决',         score:'胜场' },
-  { id:'typing',      name:'打字达人',     icon:'⌨️', desc:'英文打字',         score:'分数' },
-  { id:'catch',       name:'接水果',       icon:'🍎', desc:'接住掉落水果',     score:'分数' },
-  { id:'maze',        name:'迷宫',         icon:'🌀', desc:'走出迷宫',         score:'通关数' },
-  { id:'flappy',      name:'像素鸟',       icon:'🐤', desc:'经典 Flappy Bird', score:'分数' }
+  { id:'dino',        name:'小恐龙跑酷',   icon:'🦖', desc:'经典 Chrome 恐龙', score:'分数', how:'目标：跑得越远分数越高。\n操作：按 空格/点击 起跳，按 下方向键 俯冲下压。\n技巧：仙人掌矮要提前小跳，翼龙可以俯冲躲避；连续跳跃时控制好节奏，越到后面速度越快。' },
+  { id:'tetris',      name:'俄罗斯方块',   icon:'🧱', desc:'经典下落方块',     score:'分数', how:'目标：消除尽可能多的整行。\n操作：←/→ 左右移动，↑ 旋转方块，↓ 加速下落，空格 直接落底。\n技巧：留出至少一条平整的通道，优先消除最底层的空缺；方块形状要和已有堆叠匹配再旋转。' },
+  { id:'snake',       name:'贪吃蛇',       icon:'🐍', desc:'经典贪吃蛇',       score:'分数', how:'目标：吃到食物让蛇变长，得分增加。\n操作：方向键控制蛇头移动。\n技巧：不要贴着墙和自己的身体走，提前规划转弯路线；分数越高蛇越长，越要留足回旋空间。' },
+  { id:'minesweeper', name:'扫雷',         icon:'💣', desc:'Windows 经典扫雷', score:'用时(秒)', how:'目标：在最短时间内翻开所有非雷格。\n操作：左键翻开格子，右键标记/取消旗帜。\n技巧：数字代表周围 8 格的雷数，根据数字推断安全格；先点开大片空白区域再逐步推理边缘。' },
+  { id:'2048',        name:'2048',         icon:'🔢', desc:'数字合成',         score:'分数', how:'目标：合并相同数字，拼出 2048。\n操作：方向键 / 滑动 让所有方块向同一方向移动。\n技巧：保持大数字固定在某个角落，小数字往大数字方向合并；不要上下左右乱推，避免打乱布局。' },
+  { id:'woodfish',    name:'敲木鱼',       icon:'🪵', desc:'解压敲木鱼',       score:'功德', how:'目标：积累功德值，越敲越多。\n操作：点击木鱼即可敲击，每敲一下功德 +1。\n技巧：纯解压游戏，随时可以停下来休息；连点越快功德涨得越快。' },
+  { id:'whack',       name:'打地鼠',       icon:'🔨', desc:'经典打地鼠',       score:'分数', how:'目标：在限定时间内打出尽量多的地鼠。\n操作：点击从洞里冒出的地鼠得分。\n技巧：地鼠出现时间短，看到立刻点；注意别点到炸弹，会扣分。' },
+  { id:'memory',      name:'记忆翻牌',     icon:'🃏', desc:'翻牌配对',         score:'分数', how:'目标：用最少的翻牌次数把所有图案配对。\n操作：点击翻开两张牌，图案相同则消除。\n技巧：记住每张牌的位置，翻牌时有规律地按顺序翻，先建立地图再配对。' },
+  { id:'tictactoe',   name:'井字棋',       icon:'⭕', desc:'三子连线',         score:'胜场', how:'目标：比 AI 先连成三子一线。\n操作：点击 3x3 棋盘空位落子。\n技巧：先手占中心优势最大；注意封堵 AI 的两连威胁，同时自己制造双杀。' },
+  { id:'gomoku',      name:'五子棋',       icon:'⚫', desc:'人机对战',         score:'胜场', how:'目标：五子连珠获胜。\n操作：点击棋盘交叉点落子。\n技巧：先占中腹，攻守兼备；留意 AI 活三、冲四，及时堵住；自己也尝试制造双三。' },
+  { id:'breakout',    name:'打砖块',       icon:'🏓', desc:'经典弹球打砖块',   score:'分数', how:'目标：用挡板反弹小球击碎所有砖块。\n操作：左右移动鼠标或方向键控制挡板。\n技巧：球从不同角度反弹方向不同，站在球的正下方接球更稳；优先打上层、靠近顶部的砖块。' },
+  { id:'plane',       name:'飞机大战',     icon:'✈️', desc:'经典飞机射击',     score:'分数', how:'目标：击落敌机，躲避子弹和碰撞，活得越久分数越高。\n操作：方向键/鼠标 控制飞机移动，自动开火（部分版本按空格发射）。\n技巧：走位躲弹幕，别贪输出；优先清掉密集的敌机群，护住自己。' },
+  { id:'guess',       name:'猜数字',       icon:'🔮', desc:'猜 1-100',         score:'猜中次数', how:'目标：用尽量少的次数猜中 1-100 之间的数字。\n操作：输入数字点击提交，系统提示 大了/小了。\n技巧：用二分法，每次都取当前范围中间值，最多 7 次必中。' },
+  { id:'sudoku',      name:'数独',         icon:'🧩', desc:'经典数独',         score:'完成数', how:'目标：完成数独盘面，每行、每列、每个 3x3 宫格填入 1-9 且不重复。\n操作：点击空格，选择数字填入。\n技巧：先找"唯一可能"的空格，从只有一个候选数的位置入手；逐行逐宫排查候选数。' },
+  { id:'match3',      name:'消消乐',       icon:'🍬', desc:'三消糖果',         score:'分数', how:'目标：交换相邻糖果，让三个或以上同色连成一线消除得分。\n操作：点击选中糖果，再点击相邻糖果交换位置。\n技巧：尽量制造四连、五连触发特殊糖果；从底部消除更容易引发连锁下落。' },
+  { id:'rps',         name:'石头剪刀布',   icon:'✊', desc:'人机对决',         score:'胜场', how:'目标：赢过 AI，累计胜场。\n操作：点击 石头✊ / 剪刀✌️ / 布🖐 出招。\n技巧：观察 AI 的出招习惯，适当变化策略；偶尔故意反着出，打乱规律。' },
+  { id:'typing',      name:'打字达人',     icon:'⌨️', desc:'英文打字',         score:'分数', how:'目标：在规定时间内打出尽量多的正确单词。\n操作：看到屏幕上的英文单词，用键盘快速输入并回车/自动提交。\n技巧：保持手指位置正确，看单词别盯键盘；先求准再求快。' },
+  { id:'catch',       name:'接水果',       icon:'🍎', desc:'接住掉落水果',     score:'分数', how:'目标：接住尽量多的掉落水果。\n操作：左右移动鼠标/方向键控制底部篮子。\n技巧：站在水果落点下方等它，别来回乱跑；注意同时掉落多个水果时优先接价值高的。' },
+  { id:'maze',        name:'迷宫',         icon:'🌀', desc:'走出迷宫',         score:'通关数', how:'目标：从起点走到终点，通关迷宫。\n操作：方向键/点击 控制角色移动。\n技巧：沿着一侧墙壁（比如一直靠右）走，保证能找到出口；记住走过的死胡同。' },
+  { id:'flappy',      name:'像素鸟',       icon:'🐤', desc:'经典 Flappy Bird', score:'分数', how:'目标：控制小鸟穿过管道缝隙，穿过的管道越多分越高。\n操作：点击/空格 让小鸟扇翅上升，松手自然下落。\n技巧：轻点保持节奏，不要狂点；让小鸟保持在管道间隙的中间高度平稳飞行。' }
 ];
 
 /* ============ 登录 / 注册 ============ */
@@ -254,6 +302,7 @@ async function renderGames() {
   GAMES.forEach(g => {
     const best = bests[g.id] !== undefined ? bests[g.id] : null;
     html += `<div class="game-card" onclick="openGame('${g.id}','${g.name}')">
+      <div class="more-btn" title="查看详情与玩法" onclick="event.stopPropagation();showGameInfo('${g.id}')">⋯</div>
       <div class="icon">${g.icon}</div>
       <div class="gname">${g.name}</div>
       <div class="gdesc">${g.desc}</div>
@@ -268,6 +317,37 @@ function openGame(id, name) {
   document.getElementById('gmTitle').textContent = name;
   document.getElementById('gameFrame').src = 'games/' + id + '.html';
   document.getElementById('gameModal').style.display = 'flex';
+}
+
+/* ============ 游戏详情（⋯ 按钮） ============ */
+let infoGameId = null;
+function showGameInfo(id) {
+  const g = GAMES.find(x => x.id === id);
+  if (!g) return;
+  infoGameId = id;
+  document.getElementById('infoTitle').textContent = g.icon + ' ' + g.name;
+  document.getElementById('infoDesc').textContent = g.desc;
+  const lines = (g.how || '').split('\n');
+  let goal = '', oper = '', tips = '';
+  lines.forEach(l => {
+    if (l.indexOf('目标：') === 0) goal = l.slice(3);
+    else if (l.indexOf('操作：') === 0) oper = l.slice(3);
+    else if (l.indexOf('技巧：') === 0) tips = l.slice(3);
+  });
+  document.getElementById('infoGoal').textContent = goal || '—';
+  document.getElementById('infoOper').textContent = oper || '—';
+  document.getElementById('infoTips').textContent = tips || '—';
+  document.getElementById('infoModal').style.display = 'flex';
+}
+function closeInfo() {
+  document.getElementById('infoModal').style.display = 'none';
+  infoGameId = null;
+}
+function playFromInfo() {
+  if (!infoGameId) return;
+  const g = GAMES.find(x => x.id === infoGameId);
+  closeInfo();
+  openGame(g.id, g.name);
 }
 function closeGame() {
   document.getElementById('gameModal').style.display = 'none';
